@@ -1,0 +1,14 @@
+---
+description: Git commit authorship — never add Cursor as co-author
+alwaysApply: true
+---
+
+# Git commits
+
+When creating git commits in this repository:
+
+- **Never** add `Co-authored-by:` (or `Co-Authored-By:`) trailers naming Cursor, Cursor Agent, or any `@cursor.com` address.
+- **Never** pass `--trailer "Co-authored-by: Cursor ..."` (or similar) to `git commit`.
+- Commit messages must list only human authors the user explicitly requests.
+
+If a commit hook rejects a message, rewrite it without Cursor co-author lines and retry.

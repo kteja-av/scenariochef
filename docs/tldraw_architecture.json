@@ -1,0 +1,1172 @@
+{
+  "appVersion": "3.0.0",
+  "store": {
+    "root:root": {
+      "id": "root:root",
+      "typeName": "root",
+      "meta": {}
+    },
+    "document:document": {
+      "id": "document:document",
+      "typeName": "document",
+      "meta": {},
+      "name": "",
+      "gridSize": 20,
+      "cursors": {}
+    },
+    "page:page": {
+      "id": "page:page",
+      "typeName": "page",
+      "meta": {},
+      "name": "Phase 1 — Automated OpenSCENARIO + esmini System",
+      "index": "a1"
+    },
+    "page:archive": {
+      "id": "page:archive",
+      "typeName": "page",
+      "meta": {},
+      "name": "Archive",
+      "index": "a2"
+    },
+    "instance:instance": {
+      "id": "instance:instance",
+      "typeName": "instance",
+      "meta": {},
+      "activePageId": "page:page",
+      "cursors": {},
+      "currentPageId": "page:page",
+      "exportBackgrounds": true,
+      "exportCss": false,
+      "exportFormat": "png",
+      "exportSelectionAsContent": true,
+      "exportWithCss": false,
+      "gridSize": 20,
+      "isBackground": true,
+      "isDarkMode": false,
+      "isDebugMode": false,
+      "isFocusMode": false,
+      "isGridMode": true,
+      "isHidingUI": false,
+      "isLiveMode": true,
+      "isPageMode": false,
+      "isReadonly": false,
+      "isRightClick": false,
+      "isSnapping": true,
+      "isStickyMouseDown": false,
+      "isToolLock": false,
+      "isZoomToFit": true,
+      "language": "en-US",
+      "lastSelectedToolId": "handle",
+      "pageToActualPage": {
+        "page:page": "page:page",
+        "page:archive": "page:archive"
+      },
+      "pageToZoom": {
+        "page:page": 1
+      },
+      "penChoice": "basic",
+      "penPrecision": 1,
+      "penTool": "pencil",
+      "selectAllOnUnlock": true,
+      "showBoundingBoxes": false,
+      "showGrid": true,
+      "showTips": false,
+      "showUI": true,
+      "splinePrecision": 1,
+      "styles": {
+        "animation": "none",
+        "darkMode": "light",
+        "font": "draw",
+        "highlight": "none",
+        "pattern": "grid"
+      },
+      "theme": {
+        "brush": "#2d2d2d",
+        "foreground": "#000000",
+        "background": "#ffffff",
+        "surface": "#ffffff",
+        "panel": "#f0f0f0",
+        "text": "#000000",
+        "accent": "#000000"
+      },
+      "touchState": {
+        "type": "idle"
+      },
+      "unlockedFigureTypes": [],
+      "variant": "desktop"
+    },
+    "instance_page_state:page:page": {
+      "id": "instance_page_state:page:page",
+      "typeName": "instance_page_state",
+      "meta": {},
+      "pageId": "page:page",
+      "camera": {
+        "x": 0,
+        "y": 0,
+        "z": 1
+      },
+      "rotation": "horizontal",
+      "scrollX": 800,
+      "scrollY": 400
+    },
+    "instance_page_state:instance_page_state:page:archive": {
+      "id": "instance_page_state:instance_page_state:page:archive",
+      "typeName": "instance_page_state",
+      "meta": {},
+      "pageId": "page:archive",
+      "camera": {
+        "x": 0,
+        "y": 0,
+        "z": 1
+      },
+      "rotation": "horizontal",
+      "scrollX": 0,
+      "scrollY": 0
+    },
+
+    "shape:title": {
+      "id": "shape:title",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "a1",
+      "x": 600,
+      "y": 50,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "text",
+      "props": {
+        "color": "black",
+        "text": "Phase 1 — Automated OpenSCENARIO + esmini System\nAbstraction & Capability Layer Architecture",
+        "font": "draw",
+        "size": "xl",
+        "textAlign": "middle",
+        "verticalAlign": "middle",
+        "w": 600,
+        "h": 100
+      }
+    },
+
+    "shape:layers_label": {
+      "id": "shape:layers_label",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "a2",
+      "x": 100,
+      "y": 160,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "text",
+      "props": {
+        "color": "black",
+        "text": "ABSTRACTION LAYERS (horizontal bands, bottom to top)\n\nL0  Orchestration — coordinates all components, routes data between them\nL1  Capabilities — 11 named capability groups (C1–C11)\nL2  Sub-Capabilities — 60+ atomic sub-functions (per-capability detail)\nL3  Intelligence — agent candidates vs deterministic functions\nL4  Data Stores — persistent state: IR, .xosc/.xodr, runs, metrics, logs",
+        "font": "mono",
+        "size": "s",
+        "textAlign": "left",
+        "verticalAlign": "top",
+        "w": 380,
+        "h": 320
+      }
+    },
+
+    "shape:capability_label": {
+      "id": "shape:capability_label",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "a3",
+      "x": 520,
+      "y": 160,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "text",
+      "props": {
+        "color": "black",
+        "text": "CAPABILITY LAYER (C1–C11)\nVertical ordering reflects approximate data-flow sequence.\nEach box = one capability (L1).\nInternal subcomponents = L2 detail.\nArrows = data flow for a single user request.",
+        "font": "mono",
+        "size": "s",
+        "textAlign": "left",
+        "verticalAlign": "top",
+        "w": 460,
+        "h": 180
+      }
+    },
+
+    "shape:user_request_label": {
+      "id": "shape:user_request_label",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "a4",
+      "x": 100,
+      "y": 510,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "text",
+      "props": {
+        "color": "black",
+        "text": "USER REQUEST (entry point)\n\nNatural language: \"Create a cut-in scenario where the ego vehicle is travelling at 60 km/h and the target vehicle cuts in at 20 metres.\"\n\nStructured parameters (speed, distance, actor roles)\nExisting OpenSCENARIO XML / OpenDRIVE map (as input)\nScenario templates, ADAS test requirements, safety requirements, parameter ranges",
+        "font": "mono",
+        "size": "s",
+        "textAlign": "left",
+        "verticalAlign": "top",
+        "w": 400,
+        "h": 180
+      }
+    },
+
+    "shape:c1_box": {
+      "id": "shape:c1_box",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "a5",
+      "x": 100,
+      "y": 720,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "geo",
+      "props": {
+        "geo": "rectangle",
+        "w": 220,
+        "h": 90,
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "font": "draw",
+        "text": "C1  Scenario Input\n\nSub-capabilities (L2):\n- Natural Language Input\n- Structured Parameters\n- Scenario Templates\n- Existing Scenario Input",
+        "textAlign": "middle",
+        "verticalAlign": "middle",
+        "url": ""
+      }
+    },
+
+    "shape:c2_box": {
+      "id": "shape:c2_box",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "a6",
+      "x": 360,
+      "y": 720,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "geo",
+      "props": {
+        "geo": "rectangle",
+        "w": 220,
+        "h": 110,
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "font": "draw",
+        "text": "C2  Scenario Understanding\n\n(Candidate: Agent)\n\nSub-capabilities:\n- Intent Extraction\n- Actor Identification\n- Actor Relationship Extraction\n- Maneuver Identification\n- Parameter Extraction\n- Constraint Extraction\n- Scenario Objective Extraction\n- Ambiguity Detection",
+        "textAlign": "middle",
+        "verticalAlign": "middle",
+        "url": ""
+      }
+    },
+
+    "shape:c3_box": {
+      "id": "shape:c3_box",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "a7",
+      "x": 620,
+      "y": 720,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "geo",
+      "props": {
+        "geo": "rectangle",
+        "w": 220,
+        "h": 110,
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "font": "draw",
+        "text": "C3  Scenario Knowledge\n\n(Deterministic: Knowledge / RAG layer)\n\nSub-capabilities:\n- OpenSCENARIO Knowledge (XSD, Storyboard, Act, Maneuver, Event, Action, Trigger, Conditions, Entities, Catalogs)\n- OpenDRIVE Knowledge (Road, Lane, Lane Section, Junction, Geometry, Lane Relationships, Signals)\n- esmini Knowledge (supported version, actions, conditions, runtime, CLI/API, Python, OSI, controllers)",
+        "textAlign": "middle",
+        "verticalAlign": "middle",
+        "url": ""
+      }
+    },
+
+    "shape:c4_box": {
+      "id": "shape:c4_box",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "a8",
+      "x": 880,
+      "y": 720,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "geo",
+      "props": {
+        "geo": "rectangle",
+        "w": 220,
+        "h": 150,
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "font": "draw",
+        "text": "C4  Scenario Representation\n\n(Intermediate Representation — IR)\n\nSub-capabilities:\n- Metadata\n- Environment\n- Road\n- Entities (Ego, Vehicles, Pedestrians, Misc)\n- Initial Conditions\n- Routes\n- Maneuvers\n- Events\n- Actions\n- Triggers\n- Constraints\n- Parameters\n- Objective",
+        "textAlign": "middle",
+        "verticalAlign": "middle",
+        "url": ""
+      }
+    },
+
+    "shape:c5_box": {
+      "id": "shape:c5_box",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "a9",
+      "x": 1140,
+      "y": 720,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "geo",
+      "props": {
+        "geo": "rectangle",
+        "w": 220,
+        "h": 150,
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "font": "draw",
+        "text": "C5  Scenario Generation\n\n(Candidate: Agent / Hybrid)\n\nSub-capabilities:\n- Scenario Template Generation\n- Entity Creation\n- Initial-State Generation\n- Position Assignment\n- Speed Assignment\n- Route Generation\n- Maneuver Generation\n- Event Generation\n- Trigger Generation\n- Action Generation\n- Environment Generation\n- Catalog Selection\n- OpenSCENARIO Generation\n- OpenDRIVE Association",
+        "textAlign": "middle",
+        "verticalAlign": "middle",
+        "url": ""
+      }
+    },
+
+    "shape:c6_box": {
+      "id": "shape:c6_box",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "b1",
+      "x": 1400,
+      "y": 720,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "geo",
+      "props": {
+        "geo": "rectangle",
+        "w": 220,
+        "h": 130,
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "font": "draw",
+        "text": "C6  Scenario Exploration\n\n(Candidate: Agent)\n\nSub-capabilities:\n- Parameter Sweep\n- Monte Carlo\n- Boundary Cases\n- Edge Cases\n- Scenario Mutation\n- Diversity",
+        "textAlign": "middle",
+        "verticalAlign": "middle",
+        "url": ""
+      }
+    },
+
+    "shape:c7_box": {
+      "id": "shape:c7_box",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "b2",
+      "x": 360,
+      "y": 900,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "geo",
+      "props": {
+        "geo": "rectangle",
+        "w": 220,
+        "h": 130,
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "font": "draw",
+        "text": "C7  Scenario Validation\n\n(Deterministic)\n\nSub-capabilities:\n- XML/XSD Validation\n- Semantic Validation\n- Map Validation\n- Catalog Validation\n- Physical Plausibility\n- Runtime Validation",
+        "textAlign": "middle",
+        "verticalAlign": "middle",
+        "url": ""
+      }
+    },
+
+    "shape:c8_box": {
+      "id": "shape:c8_box",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "b3",
+      "x": 620,
+      "y": 900,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "geo",
+      "props": {
+        "geo": "rectangle",
+        "w": 220,
+        "h": 230,
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "font": "draw",
+        "text": "C8  esmini Simulation\n\n(Deterministic engine)\n\nSub-capabilities:\nLoading:\n- Load .xosc\n- Load .xodr\n- Resolve catalogs\n\nExecution:\n- Storyboard execution\n- Trigger evaluation\n- Event execution\n- Maneuver execution\n- Action execution\n\nEntity:\n- Vehicle state, position, velocity, acceleration, orientation, trajectory\n\nRoad:\n- Lane position, coordinates, relationships, boundaries\n\nControl:\n- Start/stop, timestep, headless, speed, configuration\n\nExternal:\n- Custom controllers, external AD stack, Python, C++\n\nOutput:\n- State, trajectory, ground truth, OSI, logs",
+        "textAlign": "middle",
+        "verticalAlign": "middle",
+        "url": ""
+      }
+    },
+
+    "shape:c9_box": {
+      "id": "shape:c9_box",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "b4",
+      "x": 880,
+      "y": 900,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "geo",
+      "props": {
+        "geo": "rectangle",
+        "w": 220,
+        "h": 130,
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "font": "draw",
+        "text": "C9  Observation & Evaluation\n\n(Deterministic metrics; Analysis Agent for interpretation)\n\nObservation:\n- Ego position, target position, velocity, acceleration\n- Relative distance, lane position, trigger states, collision state, simulation time, OSI ground truth, logs\n\nEvaluation:\n- TTC, minimum distance, collision, lane departure, relative velocity, braking response, scenario completion, trigger success/failure, safety score, scenario criticality",
+        "textAlign": "middle",
+        "verticalAlign": "middle",
+        "url": ""
+      }
+    },
+
+    "shape:c10_box": {
+      "id": "shape:c10_box",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "b5",
+      "x": 1140,
+      "y": 900,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "geo",
+      "props": {
+        "geo": "rectangle",
+        "w": 220,
+        "h": 100,
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "font": "draw",
+        "text": "C10  Feedback & Improvement\n\n(Candidate: Agent for Repair & Analysis)\n\nSub-capabilities:\n- Error Classification\n- Scenario Repair\n- Regeneration\n- Scenario Ranking\n- Critical Scenario Discovery\n- Iterative Exploration",
+        "textAlign": "middle",
+        "verticalAlign": "middle",
+        "url": ""
+      }
+    },
+
+    "shape:c11_box": {
+      "id": "shape:c11_box",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "b6",
+      "x": 1400,
+      "y": 900,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "geo",
+      "props": {
+        "geo": "rectangle",
+        "w": 220,
+        "h": 110,
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "font": "draw",
+        "text": "C11  Scenario Management\n\n(Deterministic storage)\n\nSub-capabilities:\n- Scenario ID\n- Versioning\n- Parameters\n- Seeds\n- Map Version\n- Simulator Version\n- Logs\n- Results",
+        "textAlign": "middle",
+        "verticalAlign": "middle",
+        "url": ""
+      }
+    },
+
+    "shape:stores_label": {
+      "id": "shape:stores_label",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "b7",
+      "x": 100,
+      "y": 1200,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "text",
+      "props": {
+        "color": "black",
+        "text": "DATA STORES (L4)\n\nScenario IR (structured scenario description)\n.xosc / .xodr files (generated artifacts)\nValidation results (errors, warnings, dry-run logs)\nSimulation runs (state snapshots, OSI ground truth)\nMetrics & evaluation results (TTC, collision, lane departure, safety scores)\nLogs (execution logs, error traces)\nScenario metadata (IDs, versions, parameter sets, seeds, map/sim versions)\nFeedback history (repair actions, regeneration attempts, ranking decisions)",
+        "font": "mono",
+        "size": "s",
+        "textAlign": "left",
+        "verticalAlign": "top",
+        "w": 320,
+        "h": 220
+      }
+    },
+
+    "shape:agent_label": {
+      "id": "shape:agent_label",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "b8",
+      "x": 520,
+      "y": 1200,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "text",
+      "props": {
+        "color": "black",
+        "text": "INTELLIGENCE LAYER (L3) — Agent vs Deterministic mapping\n\nAgent (or candidate):\n  C2  Scenario Understanding (intent parsing)\n  C5  Scenario Generation (decision-making; XML output stays deterministic)\n  C6  Scenario Exploration (which scenario next)\n  C10 Scenario Repair (error → fix → regenerate)\n  C9  Scenario Analysis (interpretation of outcomes)\n\nDeterministic:\n  C3  Knowledge / RAG retrieval\n  C4  IR data model\n  C7  Validation (XSD, semantic, physical, runtime)\n  C8  esmini execution engine\n  C11 Scenario Management (storage)",
+        "font": "mono",
+        "size": "s",
+        "textAlign": "left",
+        "verticalAlign": "top",
+        "w": 480,
+        "h": 220
+      }
+    },
+
+    "shape:flow_label": {
+      "id": "shape:flow_label",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "b9",
+      "x": 1020,
+      "y": 1200,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "text",
+      "props": {
+        "color": "black",
+        "text": "DATA FLOW — One User Request\n\n1.  User request enters C1 (Input)\n2.  C2 (Understanding) parses intent → structured scenario IR\n3.  C2 queries C3 (Knowledge) for OpenSCENARIO / OpenDRIVE / esmini schemas & rules\n4.  C2 + C3 produce C4 (IR) — internal structured scenario description\n5.  C4 feeds C5 (Generation) and C6 (Exploration)\n6.  C5 constructs scenario; C6 varies parameters (sweep, Monte Carlo, edge cases)\n7.  C4 + C5 compile → .xosc / .xodr files (deterministic output)\n8.  C7 (Validation) checks: XML/XSD → semantic → physical plausibility → runtime dry-run\n9.  If FAIL → C10 (Repair) classifies error, modifies IR, loops back to C5\n   If PASS → C8 (esmini Simulation) loads & executes the scenario\n10. C8 runs scenario: storyboard, triggers, entity & road simulation, external controllers\n11. C8 emits OSI ground truth, entity states, logs\n12. C9 (Observation) collects states; C9 (Evaluation) computes TTC, collision, lane departure, safety score\n13. C9 results + C10 (Analysis) rank scenarios, find critical/near-miss cases\n14. C10 (Feedback) → C6 (Exploration) to generate next batch or mutate interesting scenarios\n15. C11 (Management) stores everything: IR, .xosc/.xodr, validation results, run data, metrics, logs, versions\n\n(Closed-loop: output of C9/C10 feeds back into C6/C10 for iterative exploration)",
+        "font": "mono",
+        "size": "s",
+        "textAlign": "left",
+        "verticalAlign": "top",
+        "w": 460,
+        "h": 400
+      }
+    },
+
+    "shape:arrow_input_understand": {
+      "id": "shape:arrow_input_understand",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "c1",
+      "x": 210,
+      "y": 810,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "arrow",
+      "props": {
+        "start": {
+          "type": "binding",
+          "boundShapeId": "shape:c1_box",
+          "normalizedAnchor": { "x": 1, "y": 0.5 },
+          "isExact": true
+        },
+        "end": {
+          "type": "binding",
+          "boundShapeId": "shape:c2_box",
+          "normalizedAnchor": { "x": 0, "y": 0.5 },
+          "isExact": true
+        },
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "arrowheadStart": "none",
+        "arrowheadEnd": "arrow",
+        "text": "",
+        "labelPosition": 0.5,
+        "font": "draw"
+      }
+    },
+
+    "shape:arrow_understand_knowledge": {
+      "id": "shape:arrow_understand_knowledge",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "c2",
+      "x": 470,
+      "y": 830,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "arrow",
+      "props": {
+        "start": {
+          "type": "binding",
+          "boundShapeId": "shape:c2_box",
+          "normalizedAnchor": { "x": 1, "y": 0.25 },
+          "isExact": true
+        },
+        "end": {
+          "type": "binding",
+          "boundShapeId": "shape:c3_box",
+          "normalizedAnchor": { "x": 0, "y": 0.3 },
+          "isExact": true
+        },
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "arrowheadStart": "none",
+        "arrowheadEnd": "arrow",
+        "text": "queries schema\n& rules",
+        "labelPosition": 0.5,
+        "font": "draw"
+      }
+    },
+
+    "shape:arrow_knowledge_rep": {
+      "id": "shape:arrow_knowledge_rep",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "c3",
+      "x": 730,
+      "y": 820,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "arrow",
+      "props": {
+        "start": {
+          "type": "binding",
+          "boundShapeId": "shape:c3_box",
+          "normalizedAnchor": { "x": 1, "y": 0.5 },
+          "isExact": true
+        },
+        "end": {
+          "type": "binding",
+          "boundShapeId": "shape:c4_box",
+          "normalizedAnchor": { "x": 0, "y": 0.5 },
+          "isExact": true
+        },
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "arrowheadStart": "none",
+        "arrowheadEnd": "arrow",
+        "text": "informs IR\nschema",
+        "labelPosition": 0.5,
+        "font": "draw"
+      }
+    },
+
+    "shape:arrow_rep_gen": {
+      "id": "shape:arrow_rep_gen",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "c4",
+      "x": 990,
+      "y": 820,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "arrow",
+      "props": {
+        "start": {
+          "type": "binding",
+          "boundShapeId": "shape:c4_box",
+          "normalizedAnchor": { "x": 1, "y": 0.5 },
+          "isExact": true
+        },
+        "end": {
+          "type": "binding",
+          "boundShapeId": "shape:c5_box",
+          "normalizedAnchor": { "x": 0, "y": 0.5 },
+          "isExact": true
+        },
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "arrowheadStart": "none",
+        "arrowheadEnd": "arrow",
+        "text": "IR →\nbuild scenario",
+        "labelPosition": 0.5,
+        "font": "draw"
+      }
+    },
+
+    "shape:arrow_rep_explore": {
+      "id": "shape:arrow_rep_explore",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "c5",
+      "x": 1280,
+      "y": 810,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "arrow",
+      "props": {
+        "start": {
+          "type": "binding",
+          "boundShapeId": "shape:c4_box",
+          "normalizedAnchor": { "x": 1, "y": 0.3 },
+          "isExact": true
+        },
+        "end": {
+          "type": "binding",
+          "boundShapeId": "shape:c6_box",
+          "normalizedAnchor": { "x": 0, "y": 0.3 },
+          "isExact": true
+        },
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "arrowheadStart": "none",
+        "arrowheadEnd": "arrow",
+        "text": "IR →\nvary parameters",
+        "labelPosition": 0.5,
+        "font": "draw"
+      }
+    },
+
+    "shape:arrow_gen_explore_val": {
+      "id": "shape:arrow_gen_explore_val",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "c6",
+      "x": 1250,
+      "y": 860,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "arrow",
+      "props": {
+        "start": {
+          "type": "binding",
+          "boundShapeId": "shape:c5_box",
+          "normalizedAnchor": { "x": 1, "y": 0.5 },
+          "isExact": true
+        },
+        "end": {
+          "type": "binding",
+          "boundShapeId": "shape:c7_box",
+          "normalizedAnchor": { "x": 0, "y": 0.8 },
+          "isExact": true
+        },
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "arrowheadStart": "none",
+        "arrowheadEnd": "arrow",
+        "text": ".xosc / .xodr",
+        "labelPosition": 0.5,
+        "font": "draw"
+      }
+    },
+
+    "shape:arrow_explore_val": {
+      "id": "shape:arrow_explore_val",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "c7",
+      "x": 1510,
+      "y": 860,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "arrow",
+      "props": {
+        "start": {
+          "type": "binding",
+          "boundShapeId": "shape:c6_box",
+          "normalizedAnchor": { "x": 1, "y": 0.5 },
+          "isExact": true
+        },
+        "end": {
+          "type": "binding",
+          "boundShapeId": "shape:c7_box",
+          "normalizedAnchor": { "x": 0, "y": 0.5 },
+          "isExact": true
+        },
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "arrowheadStart": "none",
+        "arrowheadEnd": "arrow",
+        "text": "parameterized scenarios",
+        "labelPosition": 0.5,
+        "font": "draw"
+      }
+    },
+
+    "shape:arrow_val_pass": {
+      "id": "shape:arrow_val_pass",
+      "typeName": "shape",
+      "type": "arrow",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "c8",
+      "x": 470,
+      "y": 1030,
+      "rotation": 0,
+      "opacity": 1,
+      "isLocked": false,
+      "props": {
+        "start": {
+          "type": "binding",
+          "boundShapeId": "shape:c7_box",
+          "isExact": true,
+          "normalizedAnchor": { "x": 1, "y": 0.7 }
+        },
+        "end": {
+          "type": "binding",
+          "boundShapeId": "shape:c8_box",
+          "isExact": true,
+          "normalizedAnchor": { "x": 0, "y": 0.2 }
+        },
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "arrowheadStart": "none",
+        "arrowheadEnd": "arrow",
+        "text": "PASS",
+        "labelPosition": 0.5,
+        "font": "draw"
+      }
+    },
+
+    "shape:arrow_val_fail": {
+      "id": "shape:arrow_val_fail",
+      "typeName": "shape",
+      "type": "arrow",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "c9",
+      "x": 470,
+      "y": 1120,
+      "rotation": 0,
+      "opacity": 1,
+      "isLocked": false,
+      "props": {
+        "start": {
+          "type": "binding",
+          "boundShapeId": "shape:c7_box",
+          "isExact": true,
+          "normalizedAnchor": { "x": 1, "y": 0.85 }
+        },
+        "end": {
+          "type": "binding",
+          "boundShapeId": "shape:c10_box",
+          "isExact": true,
+          "normalizedAnchor": { "x": 0, "y": 0.3 }
+        },
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "arrowheadStart": "none",
+        "arrowheadEnd": "arrow",
+        "text": "FAIL",
+        "labelPosition": 0.5,
+        "font": "draw"
+      }
+    },
+
+    "shape:arrow_sim_observe": {
+      "id": "shape:arrow_sim_observe",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "d1",
+      "x": 730,
+      "y": 1030,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "arrow",
+      "props": {
+        "start": {
+          "type": "binding",
+          "boundShapeId": "shape:c8_box",
+          "normalizedAnchor": { "x": 1, "y": 0.5 },
+          "isExact": true
+        },
+        "end": {
+          "type": "binding",
+          "boundShapeId": "shape:c9_box",
+          "normalizedAnchor": { "x": 0, "y": 0.3 },
+          "isExact": true
+        },
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "arrowheadStart": "none",
+        "arrowheadEnd": "arrow",
+        "text": "OSI ground truth\nentity states, logs",
+        "labelPosition": 0.5,
+        "font": "draw"
+      }
+    },
+
+    "shape:arrow_observe_feedback": {
+      "id": "shape:arrow_observe_feedback",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "d2",
+      "x": 990,
+      "y": 1010,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "arrow",
+      "props": {
+        "start": {
+          "type": "binding",
+          "boundShapeId": "shape:c9_box",
+          "normalizedAnchor": { "x": 1, "y": 0.5 },
+          "isExact": true
+        },
+        "end": {
+          "type": "binding",
+          "boundShapeId": "shape:c10_box",
+          "normalizedAnchor": { "x": 0, "y": 0.5 },
+          "isExact": true
+        },
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "arrowheadStart": "none",
+        "arrowheadEnd": "arrow",
+        "text": "metrics\n(TTC, collision,\nlane departure,\nsafety score)",
+        "labelPosition": 0.5,
+        "font": "draw"
+      }
+    },
+
+    "shape:arrow_feedback_explore": {
+      "id": "shape:arrow_feedback_explore",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "d3",
+      "x": 1250,
+      "y": 1020,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "arrow",
+      "props": {
+        "start": {
+          "type": "binding",
+          "boundShapeId": "shape:c10_box",
+          "normalizedAnchor": { "x": 1, "y": 0.5 },
+          "isExact": true
+        },
+        "end": {
+          "type": "binding",
+          "boundShapeId": "shape:c6_box",
+          "normalizedAnchor": { "x": 0, "y": 0.7 },
+          "isExact": true
+        },
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "arrowheadStart": "none",
+        "arrowheadEnd": "arrow",
+        "text": "cull / mutate\ninteresting scenarios",
+        "labelPosition": 0.5,
+        "font": "draw"
+      }
+    },
+
+    "shape:arrow_repair_gen": {
+      "id": "shape:arrow_repair_gen",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "d4",
+      "x": 1390,
+      "y": 1030,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "arrow",
+      "props": {
+        "start": {
+          "type": "binding",
+          "boundShapeId": "shape:c10_box",
+          "normalizedAnchor": { "x": 1, "y": 0.35 },
+          "isExact": true
+        },
+        "end": {
+          "type": "binding",
+          "boundShapeId": "shape:c5_box",
+          "normalizedAnchor": { "x": 0, "y": 0.5 },
+          "isExact": true
+        },
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "arrowheadStart": "none",
+        "arrowheadEnd": "arrow",
+        "text": "repair IR →\nregenerate",
+        "labelPosition": 0.5,
+        "font": "draw"
+      }
+    },
+
+    "shape:arrow_manage_all": {
+      "id": "shape:arrow_manage_all",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "d5",
+      "x": 90,
+      "y": 1000,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "arrow",
+      "props": {
+        "start": {
+          "type": "binding",
+          "boundShapeId": "shape:stores_label",
+          "isExact": false,
+          "normalizedAnchor": { "x": 1, "y": 0.5 }
+        },
+        "end": {
+          "type": "binding",
+          "boundShapeId": "shape:c11_box",
+          "isExact": true,
+          "normalizedAnchor": { "x": 0, "y": 0.5 }
+        },
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "arrowheadStart": "none",
+        "arrowheadEnd": "arrow",
+        "text": "",
+        "labelPosition": 0.5,
+        "font": "draw"
+      }
+    },
+
+    "shape:arrow_manage_c4": {
+      "id": "shape:arrow_manage_c4",
+      "typeName": "shape",
+      "meta": {},
+      "parentId": "page:page",
+      "index": "d6",
+      "x": 160,
+      "y": 830,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "type": "arrow",
+      "props": {
+        "start": {
+          "type": "binding",
+          "boundShapeId": "shape:c11_box",
+          "normalizedAnchor": { "x": 1, "y": 0.5 },
+          "isExact": true
+        },
+        "end": {
+          "type": "binding",
+          "boundShapeId": "shape:c4_box",
+          "normalizedAnchor": { "x": 0, "y": 0.85 },
+          "isExact": true
+        },
+        "color": "black",
+        "fill": "none",
+        "dash": "draw",
+        "size": "m",
+        "arrowheadStart": "none",
+        "arrowheadEnd": "arrow",
+        "text": "store / retrieve\nIR, params, results",
+        "labelPosition": 0.5,
+        "font": "draw"
+      }
+    }
+  },
+  "schema": {
+    "schemaVersion": 1,
+    "storeVersion": 4,
+    "recordVersions": {
+      "asset": { "version": 0, "subTypeVersions": {}, "dependentBy": {} },
+      "camera": { "version": 0, "subTypeVersions": {}, "dependentBy": {} },
+      "document": { "version": 0, "subTypeVersions": {}, "dependentBy": {} },
+      "instance": { "version": 0, "subTypeVersions": {}, "dependentBy": {} },
+      "instance_page_state": { "version": 0, "subTypeVersions": {}, "dependentBy": {} },
+      "page": { "version": 0, "subTypeVersions": {}, "dependentBy": {} },
+      "shape": { "version": 0, "subTypeVersions": {}, "dependentBy": {} },
+      "root": { "version": 0, "subTypeVersions": {}, "dependentBy": {} }
+    }
+  }
+}
