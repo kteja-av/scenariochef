@@ -1,11 +1,10 @@
-"""ScenarioChef CLI entry point (stub)."""
+"""ScenarioChef CLI entry point."""
 
-import sys
+from scenariochef.cx_orchestrator.runtime import run_pipeline
 
 
 def main() -> None:
-    print("ScenarioChef v0.1.0 — pipeline not yet implemented.")
-    sys.exit(0)
+    run_pipeline()
 
 
 if __name__ == "__main__":
