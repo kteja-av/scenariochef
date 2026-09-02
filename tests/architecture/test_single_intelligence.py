@@ -33,8 +33,7 @@ LLM_CALL_MARKERS = (
 
 
 def _iter_py_files() -> Iterator[Path]:
-    for p in SRC.rglob("*.py"):
-        yield p
+    yield from SRC.rglob("*.py")
 
 
 def test_no_llm_imports_outside_c2():
