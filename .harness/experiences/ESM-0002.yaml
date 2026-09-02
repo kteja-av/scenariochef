@@ -1,0 +1,24 @@
+id: ESM-0002
+scope: src/scenariochef/c5_generation assets/maps
+trigger: when a generated or shipped scenario is executed by esmini >= v2
+mistake: (a) an empty <StopTrigger/> (Act and Storyboard level) is treated by esmini as
+  true-at-t=0, ending the simulation immediately with only a CSV header; (b) the shipped
+  straight_2lane.xodr declared right-lane <width a="-1" .../> which esmini reads as
+  zero-width, spamming "MoveAlongS Lane -1 ... zero width" errors; both invisible to the
+  C6 dry-run
+root_cause: pyoscx serializes unset triggers as empty elements; esmini's semantics for
+  empty StopTrigger differ from the XSD's; OpenDRIVE lane width polynomials must be
+  positive (only lane *ids* carry the sign)
+correct_rule: always emit explicit stop triggers at both levels - Act(name=...,
+  stoptrigger=ValueTrigger(..., triggeringpoint="stop")) and StoryBoard(init=...,
+  stoptrigger=...) - with a real SimulationTimeCondition (XSD requires triggeringpoint
+  "stop" or pyoscx raises); OpenDRIVE lane width coefficient a must be > 0
+severity: CRITICAL
+failure_class: esmini-instant-termination
+confidence: '0.99'
+source: real-esmini verification session 2026-09-03
+created_at: '2026-09-03'
+last_observed: '2026-09-03'
+status: ACTIVE
+times_prevented: 0
+failure_count: 0

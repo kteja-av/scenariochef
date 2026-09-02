@@ -1,0 +1,25 @@
+id: ESM-0001
+scope: src/scenariochef/c5_generation src/scenariochef/c3_knowledge/data
+trigger: when emitting CatalogReference entities for esmini execution
+mistake: C5 emitted catalogName="Catalogs/Vehicles" entryName="car_mid" with an empty
+  <CatalogLocations/>; esmini's real VehicleCatalog has no car_mid and no Catalogs
+  directory, so real esmini (v3.7.2) aborted with "Couldn't locate OpenSCENARIO file
+  Vehicles" while the C6 dry-run (XSD-only) passed
+root_cause: dry-run validation checks XSD conformance, not resolvability against the
+  target simulator's actual catalog assets; C3's catalog inventory was synthetic
+correct_rule: bundle esmini's real catalogs under assets/catalogs/{Vehicles,Pedestrians}
+  (VehicleCatalog.xosc / PedestrianCatalog.xosc, MIT, esmini repo); C5 declares
+  <CatalogLocations><VehicleCatalog><Directory path="assets/catalogs/Vehicles"/> via
+  xosc.Catalog().add_catalog("VehicleCatalog", dir) and maps logical ids
+  (car_mid->car_white, truck->truck_yellow, pedestrian->pedestrian_adult) through
+  _ESMINI_ENTRY_MAP; esmini resolves Directory path + catalogName to
+  <dir>/<catalogName>.xosc
+severity: CRITICAL
+failure_class: esmini-catalog-unresolved
+confidence: '0.99'
+source: real-esmini verification session 2026-09-03
+created_at: '2026-09-03'
+last_observed: '2026-09-03'
+status: ACTIVE
+times_prevented: 0
+failure_count: 0

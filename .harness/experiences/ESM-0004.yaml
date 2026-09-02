@@ -1,0 +1,27 @@
+id: ESM-0004
+scope: src/scenariochef/c8_evaluation
+trigger: when parsing esmini --csv_logger output in C8
+mistake: >-
+  C8's _read_states expected a synthetic "actor,t,x,y" schema; esmini's real CSV
+  has a plain-text preamble with NO # prefix ("esmini GIT REV:", "Scenario File
+  Name:", "Number of Vehicles" line), a header line whose first cell is
+  "Index [-]" (units are inside every cell), wide per-entity column groups
+  "#1 Entity_Name", "#1 World_Position_X", "#2 ...", one row per frame with all
+  entities side by side, and a possibly truncated trailing row.
+root_cause: >-
+  C8 was built against an assumed schema; the first fix attempt also failed by
+  assuming '#' comment prefixes and a units row - always verify against a real file.
+correct_rule: >-
+  locate the header as the first line whose first comma-cell starts with "Index";
+  normalize cells with "#<g> <Field> [u]" -> "<g> <Field>"; build a (name_col, x_col,
+  y_col) triple per entity group prefix; skip rows shorter than the max needed column
+  index and non-numeric cells; keep the simple-schema branch for tests.
+severity: HIGH
+failure_class: csv-schema-mismatch
+confidence: '0.97'
+source: real-esmini verification session 2026-09-03
+created_at: '2026-09-03'
+last_observed: '2026-09-03'
+status: ACTIVE
+times_prevented: 0
+failure_count: 0

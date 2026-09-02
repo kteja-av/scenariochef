@@ -1,0 +1,25 @@
+id: ESM-0003
+scope: src/scenariochef/c7_esmini
+trigger: when building esmini argv or locating its outputs
+mistake: passed --timeout and --terminate_on_end (removed in esmini v2+; v3.7.2 rejects
+  them and prints usage), passed a relative --csv_logger path (esmini resolves it
+  against its own CWD, not the scenario dir, so C7 missed the file), and assumed
+  --window takes comma-joined geometry ("60,60,800,400"); esmini needs four separate
+  tokens
+root_cause: C7's argv was designed against esmini 0.x docs; real installed binary is
+  v3.7.2 where run duration is governed by the scenario StopTrigger instead
+correct_rule: probe the binary once with --version (_is_modern_esmini, cached per
+  binary, fails safe to legacy); modern builds get no --timeout/--terminate_on_end;
+  always pass an absolute --csv_logger path (xosc_path.parent / "<stem>_states.csv");
+  --window takes "x y w h" as four argv tokens; keep --fixed_timestep only headless so
+  GUI playback is realtime and watchable; --collision flag enables global collision
+  detection for C8
+severity: HIGH
+failure_class: esmini-argv-mismatch
+confidence: '0.98'
+source: real-esmini verification session 2026-09-03
+created_at: '2026-09-03'
+last_observed: '2026-09-03'
+status: ACTIVE
+times_prevented: 0
+failure_count: 0
