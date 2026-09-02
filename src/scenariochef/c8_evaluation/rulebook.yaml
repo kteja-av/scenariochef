@@ -1,0 +1,46 @@
+version: 1
+# C8 evaluation rulebook — thresholds and pairing rules (docs/rulebook.md is the doc copy)
+
+metrics:
+  ttc:
+    definition: "gap / closing_speed when closing_speed > 0; report min over run"
+    unit: s
+  pet:
+    definition: "|t_A - t_B| at conflict point; conflict point = midpoint at min-TTC frame"
+    unit: s
+  collision:
+    definition: "any frame with euclidean gap < collision_threshold"
+    unit: bool
+  completion:
+    definition: "sim_time >= completion_time_fraction * planned_duration"
+    unit: bool
+
+thresholds:
+  - id: RB-TTC-01
+    objective_kind: ttc
+    comparator: "<="
+    value: 3.0
+  - id: RB-PET-01
+    objective_kind: pet
+    comparator: "<="
+    value: 5.0
+  - id: RB-COL-01
+    objective_kind: collision
+    comparator: "=="
+    value: 1
+  - id: RB-CMP-01
+    objective_kind: completion
+    comparator: "=="
+    value: 1
+
+pairing:
+  require_pet_with_ttc: true
+
+data_source:
+  primary: csv
+  required_columns: [t, actor, x, y]
+
+constants:
+  collision_threshold_m: 0.5
+  conflict_radius_m: 0.5
+  completion_time_fraction: 0.95
