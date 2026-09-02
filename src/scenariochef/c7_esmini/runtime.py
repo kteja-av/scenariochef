@@ -47,6 +47,40 @@ _HANG_MARKER = "hang"  # stderr signature for generic hang detection (C7-Q4).
 # be reproducible (same inputs -> same fields) apart from the measured ``duration_s``.
 _DETERMINISTIC_CREATED_AT = "2000-01-01T00:00:00+00:00"
 
+# Default esmini asset search path: the repo root that ships assets/maps and
+# assets/catalogs. Resolved from this file so it is independent of the process CWD
+# (src/scenariochef/c7_esmini/runtime.py -> parents[2] is the repo root when the
+# package lives in <repo>/src; for site-packages installs the env var or explicit
+# config must supply it).
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+# Modern esmini (>= v2) removed --timeout/--terminate_on_end: run duration is governed by
+# the scenario StopTrigger (C5 always emits one). Legacy 0.x/1.x builds still need them.
+# The probe is cached per binary and fails safe to legacy so unparseable/stand-in binaries
+# keep the historical argv.
+_MODERN_VERSION_CACHE: dict[str, bool] = {}
+
+
+def _is_modern_esmini(binary: str) -> bool:
+    """True when the binary reports esmini >= v2 (no --timeout/--terminate_on_end)."""
+    cached = _MODERN_VERSION_CACHE.get(binary)
+    if cached is not None:
+        return cached
+    modern = False
+    try:
+        proc = subprocess.run(
+            [binary, "--version"], capture_output=True, text=True, timeout=5
+        )
+        import re
+
+        match = re.search(r"v(\d+)\.", proc.stdout or "")
+        if match:
+            modern = int(match.group(1)) >= 2
+    except (OSError, subprocess.TimeoutExpired):
+        modern = False
+    _MODERN_VERSION_CACHE[binary] = modern
+    return modern
+
 
 def make_config(
     seed: int = 42,
@@ -55,13 +89,17 @@ def make_config(
     headless: bool = True,
     osi: bool = False,
     esmini_build: str | None = None,
+    asset_search_path: str | None = None,
 ) -> RunConfig:
     """Build a reproducible ``RunConfig`` (C7-Q2).
 
     ``esmini_build`` resolves to the ``ESMINI_BUILD`` env var when not given, else the
     pinned ``esmini-0.10`` default. Batch runs default to ``headless`` (C7-Q5).
+    ``asset_search_path`` is handed to esmini as ``--path`` so relative .xodr map and
+    catalog references in the generated .xosc resolve from the repo root.
     """
     build = esmini_build or os.environ.get("ESMINI_BUILD", _DEFAULT_BUILD)
+    search = asset_search_path or os.environ.get("ESMINI_ASSET_PATH") or str(_REPO_ROOT)
     return RunConfig(
         esmini_build=build,
         dt_s=dt_s,
@@ -69,6 +107,7 @@ def make_config(
         max_time_s=max_time_s,
         headless=headless,
         osi=osi,
+        asset_search_path=search,
     )
 
 
@@ -136,7 +175,11 @@ def run_c7(
         returncode, stdout_all, stderr_all, timed_out, run_config, wall_clock_timeout
     )
 
-    csv_path = dir_ / f"{xosc_path.stem}.csv"
+    # --csv_logger writes <stem>_states.csv; keep the legacy <stem>.csv check for
+    # esmini builds that auto-log next to the scenario file.
+    csv_path = dir_ / f"{xosc_path.stem}_states.csv"
+    if not csv_path.exists():
+        csv_path = dir_ / f"{xosc_path.stem}.csv"
     simulation_csv_path = str(csv_path) if csv_path.exists() else None
 
     record = RunRecord(
@@ -179,25 +222,38 @@ def _build_argv(
     seconds (C7-Q1); ``full`` runs to ``max_time_s``. ``headless`` selects the window
     geometry vs ``--headless`` (C7-Q5).
     """
-    display = ["--window", "60,60,800,400"] if not config.headless else ["--headless"]
-    if mode == "preflight":
-        timeout_s = min(config.max_time_s, _PREFLIGHT_TIMEOUT_S)
-    else:
-        timeout_s = config.max_time_s
+    # GUI window geometry is space-separated (esmini --window <x y w h>); headless hides it.
+    display = ["--window", "60", "60", "800", "400"] if not config.headless else ["--headless"]
     argv = [
         binary,
         *display,
         "--osc",
         str(xosc_path),
-        "--fixed_timestep",
-        str(config.dt_s),
         "--seed",
         str(config.seed),
-        "--timeout",
-        str(timeout_s),
     ]
-    if mode == "preflight":
+    if config.headless:
+        # Headless batch runs decouple from realtime for throughput; GUI runs realtime
+        # so the viewer window is watchable (C7-Q5 debug mode).
+        argv += ["--fixed_timestep", str(config.dt_s)]
+    if not _is_modern_esmini(binary):
+        # Legacy builds (0.x/1.x): --timeout caps sim seconds; preflight truncates to 10.
+        timeout_s = (
+            min(config.max_time_s, _PREFLIGHT_TIMEOUT_S)
+            if mode == "preflight"
+            else config.max_time_s
+        )
+        argv += ["--timeout", str(timeout_s)]
+    # ``--path`` lets esmini resolve relative OpenDRIVE map and catalog references inside
+    # the .xosc from the configured asset search path (default: repo root).
+    if config.asset_search_path:
+        argv += ["--path", config.asset_search_path]
+    if mode == "preflight" and not _is_modern_esmini(binary):
         argv.append("--terminate_on_end")
+    if mode == "full":
+        # Real-run data sources for C8 evaluation: per-vehicle state CSV + collision flag.
+        argv += ["--csv_logger", str(xosc_path.parent / f"{xosc_path.stem}_states.csv"),
+                 "--collision"]
     return argv
 
 

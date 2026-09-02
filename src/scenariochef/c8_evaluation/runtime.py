@@ -171,7 +171,42 @@ def _bucket(t: float) -> int:
 
 
 def _read_states(csv_path: Path) -> dict[str, list[tuple[float, float, float]]]:
-    """Group CSV rows (t, x, y) per actor, sorted deterministically by t."""
+    """Group per-frame states (t, x, y) per actor, sorted deterministically by t.
+
+    Accepts two schemas:
+
+    - Simple: ``actor,t,x,y`` header (historical/test format).
+    - esmini ``--csv_logger``: comment preamble lines (``esmini ...`` / ``Scenario`` /
+      ``Number of ...``), a wide ``#<i> <Field> [unit]`` header, one units row, and one
+      row per frame with all vehicles side by side. Entities are discovered from the
+      ``#<i> Entity_Name`` columns.
+    """
+    with csv_path.open(newline="", encoding="utf-8") as fh:
+        lines = fh.readlines()
+
+    if not lines:
+        return {}
+
+    header = next(csv.reader([lines[0]]))
+    if "actor" in header and "t" in header:
+        return _read_states_simple(csv_path)
+
+    # esmini --csv_logger format: a plain-text preamble (no # prefix: "esmini GIT REV:",
+    # "Scenario File Name:", "Number of Vehicles: N"), then the header line starting with
+    # "Index", then one row per frame. Locate the header by that leading cell.
+    header_idx = next(
+        (i for i, line in enumerate(lines) if line.split(",")[0].strip().startswith("Index")),
+        None,
+    )
+    if header_idx is None:
+        return {}
+    header = next(csv.reader([lines[header_idx]]))
+    body = lines[header_idx + 1 :]
+    return _read_states_esmini(header, body)
+
+
+def _read_states_simple(csv_path: Path) -> dict[str, list[tuple[float, float, float]]]:
+    """Parse the simple ``actor,t,x,y`` schema (historical format)."""
     by_actor: dict[str, list[tuple[float, float, float]]] = {}
     with csv_path.open(newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
@@ -182,6 +217,83 @@ def _read_states(csv_path: Path) -> dict[str, list[tuple[float, float, float]]]:
     for frames in by_actor.values():
         frames.sort(key=lambda f: (f[0], f[1], f[2]))
     return by_actor
+
+
+def _read_states_esmini(
+    header: list[str], body: list[str]
+) -> dict[str, list[tuple[float, float, float]]]:
+    """Parse the esmini ``--csv_logger`` wide-format schema.
+
+    Layout: col 1 = TimeStamp; per entity ``#<i>``: ``Entity_Name``, ``World_Position_X``,
+    ``World_Position_Y``. The second body line is the units row and is skipped. Rows are
+    emitted in file order per actor and then time-sorted.
+    """
+    by_actor: dict[str, list[tuple[float, float, float]]] = {}
+    # Header cells look like "Index [-]", "TimeStamp [s]", "#1 Entity_Name [-]",
+    # "#1 World_Position_X [m]", "#2 Entity_Name [-]", ... Normalize each to
+    # "<group> <field>" (group "" for the index/time columns).
+    norm = [_norm_esmini_header_cell(h) for h in header]
+    time_idx = next(
+        (i for i, h in enumerate(norm) if h.lower().startswith("timestamp")), 1
+    )
+
+    # One (name, x, y) column triple per entity group, keyed by that group's prefix.
+    entity_cols: list[tuple[int, int, int]] = []
+    for i, h in enumerate(norm):
+        parts = h.split(None, 1)
+        if len(parts) != 2 or not parts[1].lower().startswith("entity_name"):
+            continue
+        group = parts[0]
+        x_col = _group_field_col(norm, group, "World_Position_X")
+        y_col = _group_field_col(norm, group, "World_Position_Y")
+        if x_col is not None and y_col is not None:
+            entity_cols.append((i, x_col, y_col))
+    if not entity_cols:
+        return {}
+    max_col = max(time_idx, *(max(c) for c in entity_cols))
+
+    for row in csv.reader(body):
+        # esmini can emit a trailing partial row on close; skip malformed/short rows.
+        if len(row) <= max_col:
+            continue
+        t_raw = row[time_idx].strip()
+        if not t_raw:
+            continue
+        try:
+            t = float(t_raw)
+        except ValueError:
+            continue
+        for name_col, x_col, y_col in entity_cols:
+            entity = row[name_col].strip()
+            if not entity:
+                continue
+            try:
+                x = float(row[x_col])
+                y = float(row[y_col])
+            except ValueError:
+                continue
+            by_actor.setdefault(entity, []).append((t, x, y))
+
+    for frames in by_actor.values():
+        frames.sort(key=lambda f: (f[0], f[1], f[2]))
+    return by_actor
+
+
+def _norm_esmini_header_cell(cell: str) -> str:
+    """``#1 World_Position_X [m]`` -> ``1 World_Position_X`` (units dropped)."""
+    text = cell.strip().lstrip("#").strip()
+    if text.endswith("]") and " [" in text:
+        text = text.rsplit(" [", 1)[0].strip()
+    return text
+
+
+def _group_field_col(norm_header: list[str], group: str, field: str) -> int | None:
+    """Column index of ``<group> <field>`` in the normalized esmini header, else None."""
+    target = f"{group} {field}".lower()
+    for i, h in enumerate(norm_header):
+        if h.lower() == target:
+            return i
+    return None
 
 
 def _pair_gaps(

@@ -43,6 +43,10 @@ class RunConfig(BaseModel):
     max_time_s: float
     headless: bool = True
     osi: bool = False
+    # ``asset_search_path`` is passed to esmini via ``--path`` so relative OpenDRIVE map
+    # and catalog paths inside the .xosc resolve from the repo root (esmini searches the
+    # declared path for files it cannot find relative to the scenario file).
+    asset_search_path: str | None = None
 
 
 class RunRecord(BaseModel):

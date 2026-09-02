@@ -59,6 +59,40 @@ _TOTAL_INSTANCE_CAP = 8
 # resolves it through ``query_map``. Fallback when the id is unknown.
 _FALLBACK_MAP = "assets/maps/straight_2lane.xodr"
 
+# esmini catalog locations (C3-Q5: the pinned esmini build's actual catalogs). C5 declares
+# a <CatalogLocations> pointing at these on-disk assets so generated .xosc resolve against
+# the real esmini Vehicle/Pedestrian catalogs, not a synthetic entry id.
+_CATALOG_DIR = "assets/catalogs"
+VEHICLE_CATALOG_NAME = "VehicleCatalog"
+PEDESTRIAN_CATALOG_NAME = "PedestrianCatalog"
+# esmini resolves <Directory path="X"/> + catalogName -> X/<catalogName>.xosc, so the
+# declared directory is the folder holding the catalog file, not the catalog name.
+_CATALOG_DIRECTORY_OF: dict[str, str] = {
+    VEHICLE_CATALOG_NAME: f"{_CATALOG_DIR}/Vehicles",
+    PEDESTRIAN_CATALOG_NAME: f"{_CATALOG_DIR}/Pedestrians",
+}
+
+# Map ScenarioChef's logical entry ids (C4/C3 inventory) to concrete esmini catalog
+# entries that actually exist in the bundled VehicleCatalog/PedestrianCatalog assets.
+_ESMINI_ENTRY_MAP: dict[str, str] = {
+    "car_mid": "car_white",
+    "truck": "truck_yellow",
+    "pedestrian": "pedestrian_adult",
+    # passthrough: already-real esmini entry ids are used as-is
+}
+_ESMINI_CATALOG_OF: dict[str, str] = {  # logical id -> esmini catalog name
+    "pedestrian": PEDESTRIAN_CATALOG_NAME,
+}
+
+
+def _esmini_entry(bbox_ref: str) -> str:
+    return _ESMINI_ENTRY_MAP.get(bbox_ref, bbox_ref)
+
+
+def _esmini_catalog(bbox_ref: str) -> str:
+    return _ESMINI_CATALOG_OF.get(bbox_ref, VEHICLE_CATALOG_NAME)
+
+
 _PEDESTRIAN_WALK_MPS = 1.4  # Phase-1 cross_path walk speed (approximation reuse)
 
 
@@ -132,7 +166,7 @@ def _serialize(scenario_ir: ScenarioIR, overrides: dict[str, float]) -> str:
         entities=entities,
         storyboard=story,
         roadnetwork=xosc.RoadNetwork(roadfile=_resolve_map_path(scenario_ir)),
-        catalog=xosc.Catalog(),
+        catalog=_catalog_locations(scenario_ir),
         # OSC 1.1 (revMinor 1): the intersection where all Phase-1 features coexist.
         # Rule.greaterOrEqual needs >=1.1; ReachPositionCondition is removed in 1.2.
         osc_minor_version=1,
@@ -141,6 +175,26 @@ def _serialize(scenario_ir: ScenarioIR, overrides: dict[str, float]) -> str:
     root = scenario.get_element()
     ET.indent(root)
     return ET.tostring(root, encoding="unicode")
+
+
+def _catalog_locations(scenario_ir: ScenarioIR) -> xosc.Catalog:
+    """Emit <CatalogLocations> for every catalog referenced by the scenario's actors.
+
+    Declares the on-disk directory for each distinct esmini catalog used so the generated
+    .xosc's CatalogReferences resolve at runtime (esmini locates the catalog file by the
+    declared Directory). Only catalogs actually referenced are declared, keeping the
+    document minimal and matching esmini's own scenario style.
+    """
+    catalog = xosc.Catalog()
+    used: list[tuple[str, str]] = []
+    for actor in scenario_ir.actors:
+        entry = _esmini_entry(actor.bbox_ref)
+        cat = _esmini_catalog(actor.bbox_ref)
+        pair = (cat, entry)
+        if pair not in used:
+            used.append(pair)
+            catalog.add_catalog(cat, _CATALOG_DIRECTORY_OF[cat])
+    return catalog
 
 
 # --- Variation / range expansion (C5-Q2) -----------------------------------
@@ -280,10 +334,13 @@ def _rule(params: dict[str, Any]) -> xosc.Rule:
 
 
 def _entity_ref(kind: str, bbox_ref: str) -> xosc.CatalogReference:
-    """Catalog entry for an IRActor: vehicles vs pedestrians catalog mapping."""
-    if kind.lower() == "pedestrian":
-        return xosc.CatalogReference("Catalogs/Pedestrians", "pedestrian")
-    return xosc.CatalogReference("Catalogs/Vehicles", bbox_ref)
+    """Catalog entry for an IRActor, mapped onto the real esmini catalogs.
+
+    ``bbox_ref`` is the logical entry id (C4/C3): vehicles resolve to the bundled esmini
+    VehicleCatalog and pedestrians to the PedestrianCatalog, translating the logical id
+    to a concrete entry that exists in the esmini catalog assets (C3-Q5).
+    """
+    return xosc.CatalogReference(_esmini_catalog(bbox_ref), _esmini_entry(bbox_ref))
 
 
 def _build_entities(scenario_ir: ScenarioIR) -> xosc.Entities:
@@ -440,13 +497,42 @@ def _build_maneuver_group(
 def _build_storyboard(
     scenario_ir: ScenarioIR, overrides: dict[str, float], init: xosc.Init
 ) -> xosc.StoryBoard:
-    story = xosc.StoryBoard(init=init)
     if not scenario_ir.behaviors:
         # No behaviors: init-only scenario. An empty Act would fail serialization,
-        # so we skip the act when there is nothing to schedule.
-        return story
-    act = xosc.Act(name=f"act_{scenario_ir.header.request_id}")
+        # so we skip the act when there is nothing to schedule. The storyboard-level
+        # stop trigger still bounds the run in real esmini.
+        return xosc.StoryBoard(init=init, stoptrigger=_storyboard_stop_trigger())
+    act = xosc.Act(
+        name=f"act_{scenario_ir.header.request_id}",
+        stoptrigger=_storyboard_stop_trigger("act_stop"),
+    )
     for index, behavior in enumerate(scenario_ir.behaviors):
         act.add_maneuver_group(_build_maneuver_group(behavior, scenario_ir, overrides, index))
+    story = xosc.StoryBoard(init=init, stoptrigger=_storyboard_stop_trigger())
     story.add_act(act)
     return story
+
+
+# Storyboard/Act stop-triggers: an empty <StopTrigger/> is serialized when no trigger is
+# set, and real esmini treats an empty StopTrigger as true-at-t=0, ending the simulation
+# immediately (verified against esmini v3.7.2). Both levels therefore always declare an
+# explicit SimulationTimeCondition stop so the scenario runs its full duration.
+_STOP_TRIGGER_S = 30.0
+_STOP_CONDITION = None  # built lazily; xosc condition objects are single-use in pyoscx
+
+
+def _sim_time_stop_condition(value: float) -> xosc.SimulationTimeCondition:
+    return xosc.SimulationTimeCondition(value, xosc.Rule.greaterThan)
+
+
+def _storyboard_stop_trigger(name: str = "storyboard_stop") -> xosc.ValueTrigger:
+    # triggeringpoint="stop" is required by pyoscx for StoryBoard/Act stop triggers.
+    # An empty <StopTrigger/> is treated as true-at-t=0 by real esmini, so both levels
+    # always declare an explicit simulation-time stop.
+    return xosc.ValueTrigger(
+        name,
+        0,
+        xosc.ConditionEdge.none,
+        _sim_time_stop_condition(_STOP_TRIGGER_S),
+        triggeringpoint="stop",
+    )

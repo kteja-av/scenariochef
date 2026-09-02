@@ -37,10 +37,10 @@ def _parse_params(pairs: list[str]) -> dict[str, object]:
     return params
 
 
-def _run_text(text: str, params: dict[str, object]) -> int:
+def _run_text(text: str, params: dict[str, object], headless: bool = True) -> int:
     # A single dict + text request is dispatched by C1 to the NL_PARAMS adapter.
     request = {"text": text, **params} if params else text
-    result = run_request(request, acknowledgements=KNOWN_DEFAULTS)
+    result = run_request(request, acknowledgements=KNOWN_DEFAULTS, headless=headless)
     print(
         f"[run] outcome={result.outcome.value} iterations={result.iterations} "
         f"validation={result.validation_outcome or '-'} "
@@ -71,6 +71,8 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--text", dest="text", help="natural-language request")
     p_run.add_argument("--param", action="append", default=[], metavar="K=V",
                        help="explicit parameter (repeatable)")
+    p_run.add_argument("--gui", action="store_true",
+                       help="show the esmini viewer window for the final simulation")
     p_run.add_argument("--demo-count", type=int, default=20)
 
     args = ap.parse_args(argv)
@@ -81,14 +83,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "run":
         if args.text:
-            return _run_text(args.text, _parse_params(args.param))
+            return _run_text(args.text, _parse_params(args.param), headless=not args.gui)
         if args.target:
             return _run_file(Path(args.target))
         # no target or --text → run the default demo request through the real pipeline
-        return _run_text(_DEMO_REQUEST, {})
+        return _run_text(_DEMO_REQUEST, {}, headless=not args.gui)
 
     # no subcommand → default demo request through the real pipeline
-    return _run_text(_DEMO_REQUEST, {})
+    return _run_text(_DEMO_REQUEST, {}, headless=not getattr(args, "gui", False))
 
 
 if __name__ == "__main__":

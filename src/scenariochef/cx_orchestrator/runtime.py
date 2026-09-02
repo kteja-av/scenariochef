@@ -28,7 +28,7 @@ from scenariochef.c3_knowledge.store import ESMINI_BUILD_PIN
 from scenariochef.c4_ir.runtime import run_c4
 from scenariochef.c5_generation.runtime import run_c5
 from scenariochef.c6_validation.runtime import run_c6
-from scenariochef.c7_esmini.runtime import run_c7
+from scenariochef.c7_esmini.runtime import make_config, run_c7
 from scenariochef.c8_evaluation.runtime import run_c8
 from scenariochef.c9_feedback.runtime import run_c9
 from scenariochef.c10_management.runtime import run_c10
@@ -186,6 +186,7 @@ def run_request(
     budget: LoopBudget | None = None,
     now: Callable[[], float] | None = None,
     acknowledgements: list[str] | None = None,
+    headless: bool = True,
 ) -> PipelineResult:
     """Drive one request through the DAG and return a PipelineResult.
 
@@ -193,6 +194,8 @@ def run_request(
     wall-clock source (time.monotonic) so tests can fake the 5-minute budget.
     ``acknowledgements`` pre-accepts C3 default assumption ids (C1-Q3/C3-Q7); unaccepted
     defaults surface as an ``assumption_ack`` HITL instead of crashing (CX-Q3).
+    ``headless=False`` (CLI ``--gui``) opens the esmini viewer window for the final full
+    run so the simulation is visible straight from the prompt (C7-Q5 debug mode).
     """
     budget = budget or LoopBudget()
     run_id = run_id or trajectory_id
@@ -369,7 +372,12 @@ def run_request(
         validation_outcome = "passed"
 
         # e. C7 full run (first instance; batch cap) then C8 evaluation.
-        run_record = run_c7(instances[0], trajectory_id, mode="full")
+        run_record = run_c7(
+            instances[0],
+            trajectory_id,
+            mode="full",
+            config=make_config(headless=headless),
+        )
         _persist(run_record, "RunRecord")
         evaluation = run_c8(run_record, trajectory_id, scenario_ir=ir)
         _persist(evaluation, "EvaluationReport")
