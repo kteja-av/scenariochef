@@ -1,0 +1,20 @@
+id: CX-0005
+scope: src/scenariochef/c5_generation
+trigger: when a component embeds a trajectory/request id in an artifact meta
+mistake: C5 hardcoded trajectory_id=REQ-0001 in every GeneratedScenario, so downstream
+  ValidationReport/C9/C10 lineage attributed all runs to REQ-0001 regardless of the
+  actual run id
+root_cause: artifact meta is built from a hardcoded literal instead of the consuming
+  context (the IR meta)
+correct_rule: propagate trajectory_id from the input artifact meta (scenario_ir.meta.trajectory_id)
+  through every generated/output artifact
+severity: HIGH
+failure_class: trace-context-propagation
+confidence: '0.93'
+source: dry-run verification
+required_check: tests/test_c5.py::test_generated_scenario_meta_carries_ir_trajectory_id
+created_at: '2026-09-02'
+last_observed: '2026-09-02'
+status: ACTIVE
+times_prevented: 0
+failure_count: 0

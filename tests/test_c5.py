@@ -238,3 +238,25 @@ def test_run_c5_returns_instances_and_emits_trace():
     instances = run_c5(_follow_ir(), trajectory_id="REQ-0001")
     assert isinstance(instances, list)
     assert instances[0].scenario_name == "REQ-0001-v0"
+
+
+def test_generated_scenario_meta_carries_ir_trajectory_id():
+    """The GeneratedScenario meta must propagate the IR's trajectory_id (CX-0005).
+
+    A hardcoded ``REQ-0001`` here leaked a stale id into the ValidationReport, so C9
+    and C10 lineage attributed an E08 run to the wrong trajectory.
+    """
+    ir = _follow_ir(
+        meta=TraceMeta(
+            request_id="REQ-X42", trajectory_id="REQ-X42", produced_by="test-c5"
+        )
+    )
+    # match the real pipeline: header.request_id drives request_id, meta.trajectory_id
+    # drives trajectory_id. Rebuild header so both reflect the run id.
+    ir = ir.model_copy(
+        update={"header": _header(request_id="REQ-X42")}
+    )
+    instances = compile_ir(ir)
+    for inst in instances:
+        assert inst.meta.trajectory_id == "REQ-X42"
+        assert inst.meta.request_id == "REQ-X42"

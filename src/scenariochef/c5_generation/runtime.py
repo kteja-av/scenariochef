@@ -114,7 +114,7 @@ def compile_ir(scenario_ir: ScenarioIR) -> list[GeneratedScenario]:
 def _trace_meta(scenario_ir: ScenarioIR) -> TraceMeta:
     return TraceMeta(
         request_id=scenario_ir.header.request_id,
-        trajectory_id="REQ-0001",
+        trajectory_id=scenario_ir.meta.trajectory_id,
         created_at=_DETERMINISTIC_CREATED_AT,
         produced_by=_PRODUCER,
     )
