@@ -1,0 +1,18 @@
+id: CX-0001
+scope: src/scenariochef/cx_orchestrator
+trigger: when the orchestrator accepts a dict request
+mistake: passing a dict with a text key straight to C1 flagged text as an unresolved
+  param and blocked the run with a spurious HITL
+root_cause: C1 dict dispatch treated every key as a param, missing the natural-language
+  payload
+correct_rule: the NL+params adapter must extract a text/request key as the NL content
+  and treat the rest as explicit params
+severity: HIGH
+failure_class: adapter-input-shape
+confidence: '0.92'
+source: wave-D orchestrator
+created_at: '2026-09-02'
+last_observed: '2026-09-02'
+status: ACTIVE
+times_prevented: 0
+failure_count: 0

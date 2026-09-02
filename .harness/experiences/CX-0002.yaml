@@ -1,0 +1,16 @@
+id: CX-0002
+scope: src/scenariochef/c7_esmini
+trigger: when ESMINI_BIN is set but points to a missing file
+mistake: C7 returned the env path blindly and subprocess.run raised FileNotFoundError,
+  crashing the pipeline
+root_cause: binary resolution did not validate the path exists before use
+correct_rule: validate ESMINI_BIN is a real file
+severity: HIGH
+failure_class: binary-resolution
+confidence: '0.95'
+source: wave-D smoke-test
+created_at: '2026-09-02'
+last_observed: '2026-09-02'
+status: ACTIVE
+times_prevented: 0
+failure_count: 0

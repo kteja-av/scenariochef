@@ -1,0 +1,17 @@
+id: CX-0003
+scope: src/scenariochef/cx_orchestrator
+trigger: when a demo/runner sets trace.set_log to a file and later closes it
+mistake: trace._stream stayed pointing at the closed file, so later trace.emit calls
+  from other tests crashed with I/O on closed file
+root_cause: shared trace sink was not restored after use
+correct_rule: always restore trace.set_log to the previous/default sink after a file-scoped
+  run
+severity: MEDIUM
+failure_class: shared-state-leak
+confidence: '0.9'
+source: wave-D integration-test-isolation
+created_at: '2026-09-02'
+last_observed: '2026-09-02'
+status: ACTIVE
+times_prevented: 0
+failure_count: 0
