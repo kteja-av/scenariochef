@@ -10,13 +10,24 @@ from `scenariogeneration` (`xosc`/`xodr` submodules). Gotchas discovered by tria
   at `ET.tostring` time.
 
 ## Storyboard composition
-- `Storyboard(init=Init())` — Init is passed to the StoryBoard constructor. `Scenario` has
-  NO `add_init` method.
+- `Storyboard(init=Init(), stoptrigger=xosc.Trigger("stop"))` — Init AND a stop Trigger
+  are REQUIRED by the OSC 1.0 XSD sequence (Init, Story+, StopTrigger). Omitting the
+  stoptrigger makes the file XSD-INVALID (missing StopTrigger element).
+- Each Act needs `starttrigger=xosc.Trigger("start")` — XSD expects StartTrigger AFTER
+  ManeuverGroups inside Act. Without it scenariogeneration emits a StopTrigger inside Act
+  instead, which the XSD rejects ("Unexpected child StopTrigger, StartTrigger expected").
+- `Scenario` has NO `add_init` method.
 - Chain: `Event.add_action(name, action)` + `Event.add_trigger(ValueTrigger|EntityTrigger)`;
   `Maneuver.add_event(event)`; `ManeuverGroup.add_actor(entity=...)` + `.add_maneuver(...)`;
   `Act.add_maneuver_group(mg)`; `Storyboard.add_act(act)`.
 - Raw `Condition`/`ConditionGroup` exist but the ergonomic path is `ValueTrigger`/
   `EntityTrigger` wrappers (they take the *Condition objects as valuecondition/entitycondition).
+
+## XSD gotcha: Rule enum values
+The OSC 1.0.0 XSD only allows `rule` values: `equalTo | greaterThan | lessThan`.
+`Rule.greaterOrEqual` serializes as `greaterOrEqual` and FAILS OSC 1.0 XSD validation
+(it is a 1.1+ value). Use `Rule.greaterThan(value)` with a small epsilon when a ">="
+semantic is needed against OSC 1.0.
 
 ## Triggers
 - `ValueTrigger(name, delay, conditionedge, valuecondition, triggeringpoint="start")` where
@@ -51,5 +62,8 @@ xosc.Scenario(name=..., author=..., parameters=xosc.ParameterDeclarations(),
 - Lane ids: +1 = left of center (oncoming in RHT), -1 = right driving lane.
 
 ## Validation hooks
-- `xmlschema` 4.3.2 is installed — XSD validation available for C6 S1 if an XSD file is
-  supplied (esmini ships one; OSC 1.0 XSD can be vendored).
+- `xmlschema` 4.3.2 is installed; the OSC 1.0 XSD is vendored at
+  `assets/xsd/OpenSCENARIO_1_0.xsd` (ASAM official, via ScenarioRunner's vendor copy).
+- Verified: with `Storyboard(init, stoptrigger=Trigger("stop"))`, `Act(starttrigger=
+  Trigger("start"))`, and `Rule.greaterThan` (never greaterOrEqual), generated files pass
+  `xmlschema.XMLSchema('assets/xsd/OpenSCENARIO_1_0.xsd').is_valid(xml)`.

@@ -1,0 +1,18 @@
+id: XSC-0001
+scope: src/scenariochef/c5_generation src/scenariochef/c6_validation
+trigger: when generating or validating OpenSCENARIO 1.0 XML with scenariogeneration
+mistake: storyboard without stoptrigger and Act without starttrigger, plus Rule.greaterOrEqual,
+  all produce XSD-invalid files that only fail at C6 S1
+root_cause: scenariogeneration defaults diverge from the OSC 1.0.0 XSD sequence and
+  enum facets
+correct_rule: StoryBoard(init=..., stoptrigger=Trigger(stop)), Act(starttrigger=Trigger(start)),
+  and use greaterThan/lessThan/equalTo only
+severity: CRITICAL
+failure_class: xsd-invalid-generation
+confidence: '0.97'
+source: orchestrator wave-B2 prep
+created_at: '2026-09-02'
+last_observed: '2026-09-02'
+status: ACTIVE
+times_prevented: 0
+failure_count: 0
