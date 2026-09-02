@@ -1,0 +1,146 @@
+# C3 — Scenario Knowledge: static curated typed graph + esmini capability matrix (K3).
+# Loaded once at import (deterministic, side-effect-free; never written at runtime — C3-Q4).
+# Authority ranking (C3-Q8 / DERIVED-1): xsd > esmini_docs > catalog > domain.
+# Map nodes carry identity only (id/path/sha256/version) — no lane graph (C3-Q3).
+#
+# sha256 values here with all-zero hex are DOCUMENTED PLACEHOLDERS: they stand in for
+# the yet-to-be-published digest of the pinned asset. They are not claimed to be real.
+
+simulator_builds:
+  - id: esmini-0.10
+    standard_version: "OSC-1.0 / ODR-1.4"   # metadata only — C3-Q5 pin is the build id itself
+    note: "Phase-1 pinned esmini build; K3 is keyed by this build id (C3-Q5)."
+
+map_assets:
+  - id: straight_2lane
+    path: assets/maps/straight_2lane.xodr
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    version: v1
+    note: "sha256 is a documented placeholder digest (see header). Activation / exec not part of C3."
+
+features:
+  # ---- Supported (esmini docs) ----
+  - key: osc.action.SpeedChange
+    description: "Adjust a vehicle's speed to a target over time (longitudinal action)."
+    standard_version: "OSC-1.0"
+    support_edges:
+      - build: esmini-0.10
+        level: supports
+        source_ref: "esmini docs — Actions overview"
+        authority: esmini_docs
+        excerpt: "SpeedChange is part of the esmini-supported action set for the pinned build."
+
+  - key: osc.action.LaneChange
+    description: "Transition a vehicle laterally from one lane to an adjacent lane."
+    standard_version: "OSC-1.0"
+    support_edges:
+      - build: esmini-0.10
+        level: supports
+        source_ref: "esmini docs — Actions overview"
+        authority: esmini_docs
+        excerpt: "LaneChange is part of the esmini-supported action set for the pinned build."
+
+  - key: osc.action.Following
+    description: "Follow a leading entity at a specified time/distance headway."
+    standard_version: "OSC-1.0"
+    support_edges:
+      - build: esmini-0.10
+        level: partial
+        source_ref: "esmini docs — trajectory/project control notes"
+        authority: esmini_docs
+        excerpt: "esmini supports simple trajectory following but not full FollowingController semantics; marked partial."
+
+  # ---- Triggers (supported) ----
+  - key: osc.trigger.TimeHeadway
+    description: "Trigger fires when the time headway to a reference entity passes a threshold."
+    standard_version: "OSC-1.0"
+    support_edges:
+      - build: esmini-0.10
+        level: supports
+        source_ref: "esmini docs — condition/trigger support"
+        authority: esmini_docs
+        excerpt: "TimeHeadway condition is evaluated by the pinned esmini build."
+
+  - key: osc.trigger.ReachPosition
+    description: "Trigger fires when an entity reaches a given position along its path."
+    standard_version: "OSC-1.0"
+    support_edges:
+      - build: esmini-0.10
+        level: supports
+        source_ref: "esmini docs — condition/trigger support"
+        authority: esmini_docs
+        excerpt: "ReachPosition condition is evaluated by the pinned esmini build."
+
+  # ---- OSC=yes, esmini silent -> unknown (C3-Q2; NEVER coerced to supports/partial) ----
+  - key: osc.action.Teleport
+    description: "Instantly relocate an entity to a target pose. OSC-valid; esmini docs are silent."
+    standard_version: "OSC-1.0"
+    support_edges:
+      - build: esmini-0.10
+        level: unknown
+        source_ref: "OSC-1.0 XSD (definition) — esmini docs silent"
+        authority: esmini_docs
+        excerpt: "OSC XSD defines Teleport, but esmini-0.10 docs do not state execution support. Unknown (C3-Q2); execution authority is C6/C7 dry-run (S6/derived-2)."
+
+  - key: osc.action.ControllerAssign
+    description: "Attach a controller reference to an entity. OSC-valid; esmini docs are silent."
+    standard_version: "OSC-1.0"
+    support_edges:
+      - build: esmini-0.10
+        level: unknown
+        source_ref: "OSC-1.0 XSD (definition) — esmini docs silent"
+        authority: esmini_docs
+        excerpt: "OSC XSD defines ControllerAssign, but esmini-0.10 docs do not state execution support. Unknown (C3-Q2)."
+
+  # ---- Unsupported (invented domain example) ----
+  - key: osc.action.CustomCommand
+    description: "Emit a custom, simulator-specific command byte string. Not standardized for esmini."
+    standard_version: "OSC-1.0 (custom extension space)"
+    support_edges:
+      - build: esmini-0.10
+        level: unsupported
+        source_ref: "domain note — custom command extension space"
+        authority: domain
+        excerpt: "CustomCommand is a placeholder showing the UNSUPPORTED edge class; no esmini binding exists in Phase 1."
+
+catalogs:
+  - id: catalogs/vehicles.xml
+    standard_version: "OPENSCENARIO_1.0"
+    entries:
+      - name: car_mid
+        bbox_width_m: 2.0
+        bbox_length_m: 4.5
+        bbox_height_m: 1.5
+        vehicle_class: car
+        authority: catalog
+      - name: truck
+        bbox_width_m: 2.55
+        bbox_length_m: 12.0
+        bbox_height_m: 3.5
+        vehicle_class: truck
+        authority: catalog
+      - name: pedestrian
+        bbox_width_m: 0.5
+        bbox_length_m: 0.5
+        bbox_height_m: 1.7
+        vehicle_class: pedestrian
+        authority: catalog
+
+domain_rules:
+  - id: typical_gap_20m
+    kind: assumption
+    claim: "Typical default inter-vehicle gap is 20 m."
+    value: 20.0
+    unit: m
+    source_ref: "domain note — ScenarioChef typicals"
+    authority: domain
+    fact_or_assumption: assumption
+  - id: ego_speed_range
+    kind: assumption
+    claim: "Ego initial speed bound is 0..70 m/s for Phase-1 scenarios."
+    value_min: 0.0
+    value_max: 70.0
+    unit: mps
+    source_ref: "domain note — ScenarioChef typicals"
+    authority: domain
+    fact_or_assumption: assumption
