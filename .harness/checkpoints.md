@@ -83,3 +83,39 @@ Generalizable rules (bias-variance balanced):
 ## Token count
 
 Writing this checkpoint: honest estimate ~330 tokens (markdown is terse). Prior work (trajectory tagging, tldraw doc creation, log verification) not counted here; estimate larger, exact unknown.
+
+---
+
+# Checkpoint 3
+
+Written by: independent checkpoint writer (own memory; judged directly from repo state, not any prior transcript).
+
+## Built
+
+Verified from repo, not assumed:
+
+- **Full pipeline vs. skeleton**: `git log --oneline` shows 25 single-line-stage commits from `2b665bb Initial project scaffold` → `168e744` (CX integration learnings). Each cN landed as its own commit with a follow-on "record wave … in harness" commit.
+- **11 runtimes implemented** (not stubs): `wc -l src/scenariochef/*/runtime.py` = c1 240, c2 399, c3 347, c4 332, c5 451, c6 460, c7 229, c8 352, c9 327, c10 39, cx 418 (3,594 total). `contracts/` package has 14 modules defining the typed boundaries (RequestSpec, EvidenceBundle, IntentSpec, ScenarioIR, ValidationReport, EvaluationReport, FeedbackAction, RunRecord, orchestration, etc.).
+- **Test suite green**: `.venv/bin/python -m pytest -q` → **157 passed** (clean state). Ruff: `All checks passed!`. Mypy: `Success: no issues found in 42 source files`. Note: my first CLI run polluted `artifacts/scenariochef.db`, which tripped `test_no_repo_pollution` (1 failed/156) — cleaned it and 157 passed.
+- **Harness stores populated**: `.harness/` = gate.sh, retrieve.py, compile_experience.py, promote.py, record.py; invariants/ (4 yaml), experiences/ (9 yaml), skills/ (3 md), repo-model/components.json, evals/ (empty dir), trajectories/.
+- **Docs/artifacts**: docs/contracts.md, docs/rulebook.md, docs/cx-implementation-notes.md, docs/adr/ (12 ADRs); assets/xsd/OpenSCENARIO_1_0.xsd; assets/maps/straight_2lane.xodr.
+- **Pipeline runs end-to-end (not just tests)**: `ESMINI_BIN=/nonexistent .venv/bin/python -m scenariochef.cli` → `outcome=completed iterations=1 validation=passed` and `persisted 9 artifacts` for REQ-0001. Cleaned up the run's `artifacts/scenariochef.db` and `artifacts/REQ-0001/` afterwards (repo left clean; `git status` empty).
+- **E08 lane escalation verified**: integration test `test_e08_escalates_lane_unchanged` passes — user-explicit `target_lane=3` on the two-lane map fails C6 S3 MAP_TOPOLOGY, C9 escalates (DERIVED-16, no lane rewrite; target_lane stays 3), CX returns `outcome=hitl_blocked` with a persisted ValidationReport. Also confirmed directly via `run_request({"text":"change to lane 3","target_lane":3}, ack=…)` → `hitl_blocked`.
+
+## Learned
+
+Generalizable rules (bias-variance balanced):
+
+- **Orchestrator-authored integration vs. component work:** CX is where cross-component seams belong (DERIVED-3 ack composition, budget/HITL gating, DAG sequencing, persistence), while each cN runtime stays a self-contained adapter for a single concern and can be built/verified independently. Moved final wiring into CX after component unit tests were green.
+- **DERIVED-3 ack composition pattern:** an actor expresses its ack *on the artifact it consumes* (C2-acks default assumptions on the EvidenceBundle) rather than on the producing component; the orchestrator then *composes* those acked bundles so a downstream gate passes only for accepted assumptions and surfaces outstanding ones as a `hitl_blocked` instead of crashing. Keep gates non-fatal.
+- **Tolerate offline / never raise on a missing binary:** the pipeline treats an absent esmini (`SKIPPED_NO_BINARY`) as a first-class outcome, not an exception; a validation run still returns `validation=passed` and persists all artifacts. Hardening an external-tool boundary to degrade gracefully keeps the DAG testable offline.
+- **Single-line-stage commits + harness trajectory recording:** landing each stage one commit at a time (component → wire → integration → record-in-harness) makes green-checkpoints reproducible and gives the harness a per-stage trajectory to compile into episodic memory. This is the same many-trajectory principle as checkpoint #1/#2 applied to development history, not just demo runs.
+- **What the tests/eval genuinely revealed:** `test_no_repo_pollution` is a real guard — a bare `run_request`/CLI with default Store *does* write `artifacts/scenariochef.db`, so offline verification must inject a tmp Store (as line 1 of the integration suite docstring states); running the CLI for a manual check and not cleaning up breaks the suite. Also: E08 behavior is enforced at both C4 (E08_LANE_OUT_OF_RANGE suggestion must not touch the canonical field) and C6/C9 (MAP_TOPOLOGY FAIL escalates rather than snapping), i.e. the invariant is protected at multiple layers.
+
+## Contradictions
+
+- None. Checkpoint #1/#2's "skeleton, stubs, placeholder tokens" is individually superseded per-component (each cN is now real, 39–460 lines) — expected, not a contradiction. Checkpoint #2's record says 20 trajectories wrote 440 lines to `artifacts/trace_run.log`; the file still exists (that runner is preserved) and the new CLI reachable path (`run_request`/`scenariochef.cli`) adds 9-persisted-artifact runs. No claim contradicted.
+
+## Token count
+
+Writing this checkpoint: honest estimate ~360 tokens (markdown is terse). Prior work (running pytest/ruff/mypy, end-to-end CLI, E08 verification, artifacts cleanup) not counted here; estimate larger, exact unknown.
