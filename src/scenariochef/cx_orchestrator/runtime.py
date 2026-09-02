@@ -18,7 +18,7 @@ from scenariochef.scenario_labels import scenario_label_for
 LOG_PATH = Path("artifacts") / "trace_run.log"
 
 
-def _run_one_trajectory(trajectory_id) -> None:
+def _run_one_trajectory(trajectory_id: str) -> None:
     label = scenario_label_for(trajectory_id)
     trace.emit(1, "CX", "IN", f"<raw_request:{label}>", trajectory_id)
     request_spec = run_c1(f"<raw_request:{label}>", trajectory_id)
@@ -34,7 +34,7 @@ def _run_one_trajectory(trajectory_id) -> None:
     trace.emit(12, "CX", "OUT", f"<done:{label}>", trajectory_id)
 
 
-def run_pipeline(trajectory_count=20) -> None:
+def run_pipeline(trajectory_count: int = 20) -> None:
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     log_file = open(LOG_PATH, "w", encoding="utf-8")
     trace.set_log(log_file)

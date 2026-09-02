@@ -15,7 +15,7 @@ POOL = [
 ]
 
 
-def scenario_label_for(trajectory_id) -> str:
+def scenario_label_for(trajectory_id: str) -> str:
     """Return the deterministic scenario label for a `REQ-NNNN` id."""
     n = int(trajectory_id.split("-")[1])
     return POOL[(n - 1) % len(POOL)]
