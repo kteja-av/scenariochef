@@ -150,6 +150,19 @@ def _map_topology_for(map_id: str) -> dict[int, float] | None:
     return lengths or None
 
 
+def _default_road_for(map_id: str) -> int | None:
+    """A sensible default driving road on the selected map: its longest road.
+
+    Auto-selected multi-road maps (urban junction networks) usually have no road 1;
+    binding the default spawn to the longest road keeps keyword-selected environments
+    runnable without the request naming a road explicitly.
+    """
+    lengths = _map_topology_for(map_id)
+    if not lengths:
+        return None
+    return max(lengths, key=lambda rid: lengths[rid])
+
+
 def _explicit_map_id(intent_spec: IntentSpec) -> str | None:
     """Map id named explicitly by the request, or None (C1-Q2: explicit wins)."""
     for constraint in intent_spec.constraints:
@@ -336,6 +349,7 @@ def build_ir(
     # re-route — C3-Q3 boundary) so auto-selected short-segment urban maps don't get
     # out-of-range s values that esmini would silently truncate.
     map_topology = _map_topology_for(map_id)
+    default_road = _default_road_for(map_id)
     actors: list[IRActor] = []
     actor_constraints: list[IRConstraint] = []
     for actor_intent in intent_spec.actors:
@@ -344,9 +358,16 @@ def build_ir(
             speed if isinstance(speed, float) else (speed.min + speed.max) / 2.0
         )
         spawn = actor_intent.initial_position
-        if map_topology is not None and spawn.s_m is not None:
-            max_s = map_topology.get(int(spawn.road_id or 1))
-            if max_s is not None and spawn.s_m > max_s:
+        if map_topology is not None:
+            spawn_road = int(spawn.road_id or 1)
+            if spawn_road not in map_topology and default_road is not None:
+                # The spawn's road does not exist on the selected map; bind to the
+                # map's longest road (keeps keyword-selected junction networks
+                # runnable without the request naming a road).
+                spawn = spawn.model_copy(update={"road_id": default_road})
+                spawn_road = default_road
+            max_s = map_topology.get(spawn_road)
+            if max_s is not None and spawn.s_m is not None and spawn.s_m > max_s:
                 spawn = spawn.model_copy(update={"s_m": max_s * 0.9})
         actor = IRActor(
             name=actor_intent.name,
