@@ -268,9 +268,11 @@ def _public_lane_position(params: dict[str, Any]) -> xosc.LanePosition:
 
 
 def _rule(params: dict[str, Any]) -> xosc.Rule:
+    # OSC 1.0 XSD only allows equalTo|greaterThan|lessThan; greaterOrEqual is 1.1+
+    # (see .harness experience XSC-0001). A >= semantic maps to greaterThan.
     rule = str(params.get("rule", "greaterOrEqual")).strip().lower()
     if rule in ("ge", ">=", "greater", "greaterorequal"):
-        return xosc.Rule.greaterOrEqual
+        return xosc.Rule.greaterThan
     return xosc.Rule.equalTo
 
 
@@ -332,14 +334,14 @@ def _trigger_for(
     if trigger is None:
         return xosc.ValueTrigger(
             name, 0, xosc.ConditionEdge.none,
-            xosc.SimulationTimeCondition(0, xosc.Rule.greaterOrEqual),
+            xosc.SimulationTimeCondition(-0.05, xosc.Rule.greaterThan),
         )
     params = trigger.params
     if trigger.kind.value == "time":
         value = float(params.get("value", 0))
         return xosc.ValueTrigger(
             name, 0, xosc.ConditionEdge.none,
-            xosc.SimulationTimeCondition(value, xosc.Rule.greaterOrEqual),
+            xosc.SimulationTimeCondition(value - 0.05, xosc.Rule.greaterThan),
         )
     if trigger.kind.value == "speed_headway":
         value = float(params.get("value", 0))
@@ -358,7 +360,7 @@ def _trigger_for(
         return xosc.EntityTrigger(
             name, 0, xosc.ConditionEdge.none,
             xosc.TimeHeadwayCondition(
-                entity=other, value=value, rule=xosc.Rule.greaterOrEqual,
+                entity=other, value=value, rule=xosc.Rule.greaterThan,
                 alongroute=True, freespace=True,
             ),
             triggerentity=behavior.actor,
