@@ -4,7 +4,7 @@ from scenariochef import trace
 from scenariochef.scenario_labels import scenario_label_for
 
 
-def run_c7(generated_scenario, trajectory_id: str) -> str:
+def run_c7(generated_scenario: str, trajectory_id: str) -> str:
     label = scenario_label_for(trajectory_id)
     out = f"<{label}:RunRecord>"
     trace.emit(8, "C7", "IN", generated_scenario, trajectory_id)

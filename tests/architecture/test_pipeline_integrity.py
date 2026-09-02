@@ -16,7 +16,10 @@ SRC = Path(__file__).resolve().parents[2] / "src" / "scenariochef"
 CX = SRC / "cx_orchestrator" / "runtime.py"
 
 # The frozen canonical order (docs/checkpoint.md CX-Q5 / ADR-0012).
-CANONICAL = ["run_c1", "run_c2", "run_c3", "run_c4", "run_c5", "run_c6", "run_c7", "run_c8", "run_c9", "run_c10"]
+CANONICAL = [
+    "run_c1", "run_c2", "run_c3", "run_c4", "run_c5",
+    "run_c6", "run_c7", "run_c8", "run_c9", "run_c10",
+]
 
 
 def test_cx_calls_c_components_in_canonical_order():
@@ -40,7 +43,8 @@ def test_cx_has_no_dynamic_dispatch_to_components():
     for node in ast.walk(tree):
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
             value = node.func.value
-            if isinstance(value, ast.Name) and value.id in ("self", "ctx", "registry", "components", "tools"):
+            banned = ("self", "ctx", "registry", "components", "tools")
+            if isinstance(value, ast.Name) and value.id in banned:
                 raise AssertionError(
                     "CX dispatches components dynamically — must be a hardcoded DAG (CX-Q2/CX-Q1)"
                 )

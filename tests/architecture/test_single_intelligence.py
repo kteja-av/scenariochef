@@ -8,6 +8,7 @@ C8-Q2, C9-Q2 (frozen in docs/checkpoint.md).
 from __future__ import annotations
 
 import ast
+from collections.abc import Iterator
 from pathlib import Path
 
 SRC = Path(__file__).resolve().parents[2] / "src" / "scenariochef"
@@ -31,7 +32,7 @@ LLM_CALL_MARKERS = (
 )
 
 
-def _iter_py_files():
+def _iter_py_files() -> Iterator[Path]:
     for p in SRC.rglob("*.py"):
         yield p
 
