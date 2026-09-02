@@ -109,6 +109,10 @@ def test_null_proposer_deterministic_and_user_explicit_speed():
     assert ego.initial_speed_mps == 20
     assert ego.slot.source == "user_explicit"
     assert any(m.action is ActionType.FOLLOW for m in out.maneuvers)
+    # The offline proposer must target the real default-map road id (1), not a
+    # hardcoded 0 that would produce a non-existent-road .xosc (CX-0004).
+    assert ego.initial_position.road_id == 1
+    assert out.actors[1].initial_position.road_id == 1
 
 
 def test_build_prompt_contains_user_values_and_evidence():

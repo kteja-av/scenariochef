@@ -203,6 +203,33 @@ def test_spawn_beyond_road_length_fails_s3():
     assert any(e.code is ErrorTaxonomy.MAP_TOPOLOGY for e in s3.errors)
 
 
+def test_spawn_on_missing_road_fails_s3():
+    """An actor spawning on a road the map does not contain must FAIL S3 (CX-0004).
+
+    Previously C6's actor-spawn topology check silently skipped when the road was
+    absent, so a wrong `road_id` (e.g. 0) passed validation and only surfaced at
+    esmini runtime as an E08/E10 failure.
+    """
+    ego = IRActor.model_construct(
+        name="Ego",
+        kind="vehicle",
+        bbox_ref="car_mid",
+        spawn=Position(frame=FrameTag.LANE_RELATIVE, road_id=99, lane_id=-1, s_m=0.0),
+        initial_speed_mps=15.0,
+    )
+    lead = _actor("Lead", -1, 20.0, 15.0)
+    ir = _follow_ir(ego=ego, lead=lead)
+    gs = compile_ir(ir)[0]
+    report = validate_scenario(gs, scenario_ir=ir)
+    assert report.outcome is Status.FAIL
+    s3 = next(r for r in report.stages if r.stage is Stage.S3)
+    assert s3.status is Status.FAIL
+    assert any(
+        e.code is ErrorTaxonomy.MAP_TOPOLOGY and "road 99" in e.message
+        for e in s3.errors
+    )
+
+
 # --- S2 / S4: physical bounds -------------------------------------------------
 
 

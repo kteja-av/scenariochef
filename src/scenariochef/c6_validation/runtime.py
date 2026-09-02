@@ -253,7 +253,23 @@ def _stage_s3(gs: GeneratedScenario, scenario_ir: ScenarioIR | None) -> StageRes
         road = int(spawn.road_id)
         lanes = topology.lanes.get(road)
         length = topology.lengths.get(road)
-        if lanes is not None and spawn.lane_id not in lanes:
+        if lanes is None:
+            errors.append(
+                ValidationError(
+                    code=ErrorTaxonomy.MAP_TOPOLOGY,
+                    severity=Severity.ERROR,
+                    message=(
+                        f"actor '{actor.name}' spawns on road {road}, which does not "
+                        "exist in the map"
+                    ),
+                    location=f"//actors[{actor.name}].spawn",
+                    repair_hint=(
+                        f"select an existing road; available: {sorted(topology.lanes)}"
+                    ),
+                )
+            )
+            continue
+        if spawn.lane_id not in lanes:
             errors.append(
                 ValidationError(
                     code=ErrorTaxonomy.MAP_TOPOLOGY,

@@ -1,0 +1,23 @@
+id: CX-0004
+scope: src/scenariochef/c2_understanding src/scenariochef/c6_validation
+trigger: when setting default spawn road_id for a known map, and when validating actor
+  spawn topology
+mistake: offline null_proposer hardcoded road_id=0 for the straight_2lane map (real
+  road is 1), producing a .xosc referencing a non-existent road that passed S3 because
+  C6 silently skipped missing roads in the actor-spawn check
+root_cause: default road id was not sourced from the map, and the actor-spawn topology
+  check lacked the missing-road guard that the behavior-level check already had
+correct_rule: source default road_id from the target map (or a documented constant
+  matching it) and make the actor-spawn topology check FAIL on a road absent from
+  the map, same as the behavior check
+severity: CRITICAL
+failure_class: map-binding-default
+confidence: '0.96'
+source: dry-run verification
+required_check: tests/test_c6.py::test_spawn_on_missing_road_fails_s3 and tests/test_c2.py
+  null-proposer road_id assertion
+created_at: '2026-09-02'
+last_observed: '2026-09-02'
+status: ACTIVE
+times_prevented: 0
+failure_count: 0

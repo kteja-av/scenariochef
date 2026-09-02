@@ -53,6 +53,10 @@ USER_EXPLICIT_KEYS = ("speed", "ego_speed", "lane", "target_lane", "gap", "headw
 DEFAULT_SPEED = 15.0
 DEFAULT_LANE = -1
 DEFAULT_LEAD_GAP_M = 50.0
+# The default map the offline proposer targets is `straight_2lane` (seed xodr), whose
+# single road is id 1. Hardcoding 0 here produced an .xosc referencing a non-existent
+# road — an E08-class binding bug that only surfaces at esmini runtime (CX-0004).
+DEFAULT_ROAD_ID = 1
 
 # ``run_c2`` records {trajectory_id: proposal} here for C10 action logging.
 last_proposals: dict[str, dict[str, Any]] = {}
@@ -113,7 +117,12 @@ def null_proposer(prompt: str) -> dict[str, Any]:
                 "kind": "vehicle",
                 "role": "ego",
                 "initial_speed_mps": speed,
-                "position": {"frame": "lane_relative", "road_id": 0, "lane_id": lane, "s_m": 0.0},
+                "position": {
+                    "frame": "lane_relative",
+                    "road_id": DEFAULT_ROAD_ID,
+                    "lane_id": lane,
+                    "s_m": 0.0,
+                },
             },
             {
                 "name": "lead",
@@ -122,7 +131,7 @@ def null_proposer(prompt: str) -> dict[str, Any]:
                 "initial_speed_mps": speed,
                 "position": {
                     "frame": "lane_relative",
-                    "road_id": 0,
+                    "road_id": DEFAULT_ROAD_ID,
                     "lane_id": lane,
                     "s_m": DEFAULT_LEAD_GAP_M,
                 },
@@ -259,7 +268,7 @@ def gate(
             kind="vehicle",
             role=ActorRole.EGO,
             initial_position=Position(
-                frame=FrameTag.LANE_RELATIVE, road_id=0, lane_id=ego_lane, s_m=0.0
+                frame=FrameTag.LANE_RELATIVE, road_id=DEFAULT_ROAD_ID, lane_id=ego_lane, s_m=0.0
             ),
             initial_speed_mps=ego_speed,
             slot=ego_speed_slot,
@@ -270,7 +279,7 @@ def gate(
             role=ActorRole.TARGET,
             initial_position=Position(
                 frame=FrameTag.LANE_RELATIVE,
-                road_id=0,
+                road_id=DEFAULT_ROAD_ID,
                 lane_id=int(lead_pos.get("lane_id", ego_lane)),
                 s_m=float(lead_pos.get("s_m", DEFAULT_LEAD_GAP_M)),
             ),
