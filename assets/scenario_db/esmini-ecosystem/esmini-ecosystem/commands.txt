@@ -1,0 +1,177 @@
+Usage: esmini [options]
+Options:
+  [--osc] <filename>
+      OpenSCENARIO filename (required) - if path includes spaces, enclose with ""
+  --aa_mode [mode]  (default if value omitted: 4)
+      Anti-alias mode=number of multisamples (subsamples, 0=off)
+  --axis_indicator <mode>
+      0:off 1:on 2:xray, cycle key 'x'
+  --align_routepositions
+      Align t-axis of route positions to the direction of the route
+  --bounding_boxes
+      Show entities as bounding boxes. Toggle key ','
+  --capture_screen
+      Continuous screen capture. Warning: Many jpeg files will be created
+  --camera_mode [mode]  (default if option or value omitted: orbit)
+      Initial camera mode ("orbit", "fixed", "flex", "flex-orbit", "top", "driver", "custom"). Toggle key 'k'
+  --csv_logger [csv_filename]  (default if value omitted: log.csv)
+      Log data for each vehicle in ASCII csv format
+  --collision
+      Enable global collision detection, potentially reducing performance
+  --config_file_path [path]...  (default if value omitted: config.yml)
+      Configuration file path/filename, e.g. "../my_config.txt"
+  --custom_camera <position>...
+      Additional custom camera position <x,y,z>[,h,p]
+  --custom_fixed_camera <position and optional orientation>...
+      Additional custom fixed camera position <x,y,z>[,h,p]
+  --custom_fixed_top_camera <position and rotation>...
+      Additional custom top camera <x,y,z,rot>
+  --custom_light <position and intensity>...
+      Additional custom light source <x,y,z,intensity> intensity range 0..1
+  --disable_controllers
+      Disable controllers
+  --disable_log
+      Prevent logfile from being created
+  --disable_shadows
+      Disable shadows
+  --disable_stdout
+      Prevent messages to stdout
+  --enforce_generate_model
+      Generate road 3D model even if SceneGraphFile is specified
+  --fixed_timestep <timestep>
+      Run simulation decoupled from realtime, with specified timesteps
+  --follow_object <object index (0, 1, 2..., ALL, ROAD)>
+      Set index of initial object for camera to follow (change with Tab/shift-Tab)
+  --generate_no_road_objects
+      Do not generate any OpenDRIVE road objects (e.g. when part of referred 3D model)
+  --generate_without_textures
+      Do not apply textures on any generated road model (set colors instead as for missing textures)
+  --ghost_trail_dt [dt]  (default if value omitted: 0.200000)
+      Ghost trail sample delta time
+  --ground_plane [mode]  (default if option or value omitted: auto)
+      Add a large flat ground surface. Modes: on, off, auto
+  --headless
+      Run without viewer window
+  --help
+      Show this help message (-h works as well)
+  --hide_route_waypoints
+      Disable route waypoint visualization. Toggle key 'R'
+  --hide_trajectories
+      Hide trajectories from start. Toggle key 'n'
+  --hide_ghost
+      Do not visualize ghost
+  --hide_obj_outline
+      Hide any object 2D shape outlines (toggle key ';')
+  --ignore_heading_for_traj_motion
+      Ignore heading when deciding motion direction along trajectory
+  --ignore_odr_offset
+      Ignore any offset specified in the OpenDRIVE file header
+  --ignore_z
+      Ignore provided z values from OSC file and place vehicle relative to road
+  --ignore_p
+      Ignore provided pitch values from OSC file and place vehicle relative to road
+  --ignore_r
+      Ignore provided roll values from OSC file and place vehicle relative to road
+  --info_text [mode]  (default if option or value omitted: 1)
+      Show on-screen info text. Modes: 0=None 1=current 2=per_object 3=both. Toggle key 'i'
+  --light_mode [mode]  (default if option or value omitted: auto)
+      Show lights for light state actions. Modes: on, off, auto. Toggle key 'L'
+  --log_append
+      Log all scenarios in the same txt file
+  --logfile_path [path]  (default if option or value omitted: log.txt)
+      Logfile path/filename, e.g. "../my_log.txt"
+  --log_meta_data
+      Log file name, function name and line number
+  --log_level [mode]  (default if option or value omitted: info)
+      Log level debug, info, warn, error
+  --log_only_modules <modulename(s)>
+      Log from only these modules. Overrides log_skip_modules. See User guide for more info
+  --log_skip_modules <modulename(s)>
+      Skip log from these modules, all remaining modules will be logged. See User guide for more info
+  --osc_str <string>
+      OpenSCENARIO XML string
+  --optimize_3d_model
+      Optimize generated OSG road model. Do not set when model is to be exported (--save_generated_model* or 'v')
+  --osg_screenshot_event_handler
+      Revert to OSG default jpg images ('c'/'C' keys handler)
+  --osi_compress
+      Compress OSI data with gzip
+  --osi_crop_dynamic <id,radius>...
+      Crop the dynamic osi data around the given object id with given radius
+  --osi_exclude_ghost
+      Excludes ghost from osi dynamic osi ground truth
+  --osi_file [filename]  (default if value omitted: ground_truth.osi)
+      Save osi trace file
+  --osi_freq <frequency>
+      Decrease OSI file entries, e.g. --osi_freq 2 -> OSI written every two simulation steps
+  --osi_lines
+      Show OSI road lines. Toggle key 'u'
+  --osi_points
+      Show OSI road points. Toggle key 'y'
+  --osi_receiver_ip [IP address]  (default if value omitted: 127.0.0.1)
+      IP address where to send OSI UDP packages
+  --osi_static_reporting [mode]  (default if value omitted: 0)
+      Decide how the static data should be reported, 0=Default (first frame), 1=API (expose on API) 2=API_AND_LOG (Always log)
+  --param_dist <filename>
+      Run variations of the scenario according to specified parameter distribution file
+  --param_permutation <index>
+      Run specific permutation of parameter distribution, index in range (0 .. NumberOfPermutations-1)
+  --pause
+      Pause simulation after initialization
+  --path <path>...
+      Search path prefix for assets, e.g. OpenDRIVE files.
+  --player_server
+      Launch UDP server for action/command injection
+  --plot [mode]  (default if value omitted: asynchronous)
+      Show window with line-plots of interesting data. Modes: asynchronous, synchronous
+  --pline_interpolation <mode>
+      Interpolate orientation ("segment", "corner", "off")
+  --record [filename]  (default if value omitted: sim.dat)
+      Record position data into a file for later replay
+  --road_features [mode]  (default if value omitted: on)
+      Show OpenDRIVE road features. Modes: on, off. Toggle key 'o'
+  --return_nr_permutations
+      Return number of permutations without executing the scenario (-1 = error)
+  --save_generated_model
+      Save generated 3D model (n/a when a scenegraph is loaded)
+  --save_generated_model_visible
+      Save generated 3D model with visible objects only (n/a when a scenegraph is loaded)
+  --save_xosc [mode]  (default if value omitted: continue)
+      Save OpenSCENARIO file with any populated parameter values (from distribution). Modes: quit, continue.
+  --seed <number>
+      Specify seed number for random generator
+  --sensors
+      Show sensor frustums. Toggle key 'r'
+  --server
+      Launch server to receive state of external Ego simulator
+  --text_scale [size factor]  (default if option or value omitted: 1.0)
+      Scale screen overlay text
+  --threads
+      Run viewer in a separate thread, parallel to scenario engine
+  --trail_mode [mode]  (default if value omitted: 0)
+      Show trail lines and/or dots. Modes: 0=None 1=lines 2=dots 3=both. Toggle key 'j'
+  --traj_filter [radius]  (default if option or value omitted: 0.1)
+      Simple filter merging close points. Set 0.0 to disable
+  --tunnel_transparency [transparency]  (default if value omitted: 0.0)
+      Set level of transparency for generated tunnels [0:1]
+  --use_signs_in_external_model
+      When external scenegraph 3D model is loaded, skip creating signs from OpenDRIVE
+  --vehicle_dynamics [<pitch,roll,tension>[,damping]]...  (default if value omitted: 2,5,25)
+      Visualize simple vehicle dynamics
+  --version
+      Show version and quit
+  --view_mode <view_mode>
+      Entity visualization: "model"(default)/"boundingbox"/"both"/"filled_boundingbox" toggle key ','
+  --wireframe
+      Global wireframe mode, toggle key 'w'
+
+Additional OSG graphics options:
+  --clear-color <color>                      Set the background color of the viewer in the form "r,g,b[,a]"
+  --screen <num>                             Set the screen to use when multiple screens are present
+  --window <x y w h>                         Set the position x, y and size w, h of the viewer window. -1 -1 -1 -1 for fullscreen.
+  --borderless-window <x y w h>              Set the position x, y and size w, h of a borderless viewer window. -1 -1 -1 -1 for fullscreen.
+  --SingleThreaded                           Run application and all graphics tasks in one single thread.
+  --lodScale <LOD scalefactor>               Adjust Level Of Detail 1=default >1 decrease fidelity <1 increase fidelity
+
+For a complete list of OSG options and environment variables, see here:
+https://github.com/esmini/esmini/blob/master/docs/osg_options_and_env_variables.txt

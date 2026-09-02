@@ -1,0 +1,106 @@
+# Environment Simulator Minimalistic (esmini)
+
+*esmini* is a basic OpenSCENARIO XML player
+
+[![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0)
+[![Build status](https://github.com/esmini/esmini/actions/workflows/ci.yml/badge.svg)](https://github.com/esmini/esmini/actions)
+
+![Screenshot](https://github.com/esmini/esmini/blob/master/resources/screenshot.jpg?raw=true "Screenshot")
+
+It contains the following main libraries:
+
+- RoadManager (esminiRMLib). A library providing an interface to road networks described in the OpenDRIVE format.
+- ScenarioEngine (esminiLib). The main library providing a viewer and API interface to traffic scenarios described in the OpenSCENARIO XML format. This library includes RoadManager.
+
+and a few applications that can be used as is or provide ideas for customized solutions:
+
+- esmini. A scenario player application linking esmini modules statically.
+- esmini-dyn. A minimalistic example using the esminiLib to play OpenSCENARIO XML files.
+- odrplot. Produces a data file from OpenDRIVE for plotting the road network in Python.
+- odrviewer. Visualize OpenDRIVE road network with populated dummy traffic.
+- replayer. Re-play previously executed scenarios.
+- osireceiver. A simple application receiving OSI messages from esmini over UDP.
+
+Repository: <https://github.com/esmini/esmini>
+
+User guide: https://esmini.github.io
+
+Pre-built demo packages are available [here](https://github.com/esmini/esmini/releases/latest). Unzip, navigate to "esmini\run\esmini" and run any of the example scripts. See more info below under [Binaries and demos](#binaries-and-demos).
+
+esmini supports OpenSCENARIO XML v1.0 - v1.3. However, please note that feature [coverage](https://github.com/esmini/esmini/blob/master/osc_coverage.txt) is limited. The functionality grows slow but steady, based on need and contributions.
+
+There is currently no plan to support OpenSCENARIO DSL.
+
+The code was initially a result from the Swedish collaborative research project [Simulation Scenarios](https://sites.google.com/view/simulationscenarios), and is now further developed based on users need and OpenSCENARIO XML development.
+
+Brief roadmap is published [here](https://docs.google.com/spreadsheets/d/e/2PACX-1vS83IWhiCWxVlDlx_51BsIZMihcy1mfZmC7YF-Mm6FyDA-ghMGaoZnmS207MaoxHdVoX2j4XKAH5u4T/pubhtml).
+
+## Background
+
+The purpose of this implementation (started 2018) was initially to explore and get familiar with the emerging [OpenSCENARIO XML](https://www.asam.net/standards/detail/openscenario-xml/) data format. The development aimed at supporting various platforms such as Windows, Mac, Linux, and Android. Tool integration and portability were high priorities. It should be easy to use for native C++ applications as well as other frameworks like Unity3D (C#) and MATLAB/Simulink, among many others. Initially, focus was more on features than quality.
+
+Since then the purpose has grown, contributing to the spread and harmonization of OpenSCENARIO XML. esmini is also being used in other applications and test platforms. It grows slowly but steady, both in terms of functionality and quality, e.g. documentation, code refactorizations, continuous integration including static code analysis, and test coverage on both unit and application levels.
+
+## Binaries and demos
+Windows, Linux and Mac supported
+
+Latest release including source, binaries and demo packages is found here: https://github.com/esmini/esmini/releases/latest
+
+Some example scenarios make use of pre-created 3D models, which are included in the demo packages. They are also available [here](https://dl.dropboxusercontent.com/s/5gk8bvgzqiaaoco/models.7z?dl=0). Unpack into esmini/resources. These assets works on all platforms.
+Environment models (roads, landscape, buildings...) have been created using [VIRES Road Network Editor](https://vires.mscsoftware.com/solutions/3d-environment-road-network).
+
+See [User Guide](https://esmini.github.io) for more information.
+
+## esmini shared library
+The easiest way of integrating esmini in your custom application is to link the all inclusive shared library ScenarioEngineDLL. In spite of the name it's available also on Linux and Mac. See further info in [User guide - esmini lib programming](https://esmini.github.io/esmini-lib-programming.html) and [User Guide "Hello World" tutorial](https://esmini.github.io/hello-world-tutorial.html) on how to create a minimalistic application based on it.
+
+### OSI support
+In addition to internal API ([example](https://esmini.github.io/hello-world-tutorial.html#_fetch_state_of_scenario_objects)) for getting information about the ongoing simulation, e.g. road width and road user position, esmini collects everything into an [OSI](https://github.com/OpenSimulationInterface) :: [groundtruth structure](https://opensimulationinterface.github.io/osi-antora-generator/asamosi/V3.5.0/gen/structosi3_1_1GroundTruth.html). This structure can be 1. stored in an OSI trace-file, 2. retrieved via UDP and/or 3. retrieved directly via API.
+
+Hello World tutorial includes an [example of how to fetch OSI groundtruth](https://esmini.github.io/hello-world-tutorial.html#_osi_groundtruth).
+
+  **Note**: Only parts of OSI groundtruth is populated.
+
+For OSI build information and version handling, see [User guide - build guide (External dependency details)](https://esmini.github.io/build-guide.html#_external_dependency_details).
+
+### Unity support
+esmini shared library works also as plugin in Unity (Win, Linux, Mac). Learn more and find example in [User guide - esmini in Unity](https://esmini.github.io/use-cases.html#_esmini_in_unity).
+
+### esmini & Python
+see [User Guide Hello-World tutorial](https://esmini.github.io/hello-world-tutorial.html#_python_binding).
+
+## Related work
+### scenariogeneration
+[scenariogeneration](https://github.com/pyoscx/scenariogeneration) is a Python based scenario creation framework. The idea is to write scenarios in a high-level script format and automatically generate and run linked OpenDRIVE and OpenSCENARIO XML counterparts. It supports parameter sweeps to create multiple variants of a parameterized scenario.
+
+### ALKS scenarios
+[OSC-ALKS-scenarios](https://github.com/arauschert/OSC-ALKS-scenarios) is a collection of scenarios for Automated Lane Keeping System testing. "BMW has taken on the task of implementing the test scenarios from the ALKS regulation using OpenSCENARIO and OpenDRIVE resulting in a bundle of XML files executable with standard compliant simulators."
+
+### NCAP scenarios
+[OSC-NCAP-scenarios](https://github.com/vectorgrp/OSC-NCAP-scenarios) is a collection of scenarios based on Euro NCAP Test Protocols. "As the Euro NCAP scenarios are widely used, Vector decided to contribute the implementation of these scenarios using the ASAM standards."
+
+### OpenDRIVE plugin for Unreal Engine
+[brifsttar/OpenDRIVE](https://github.com/brifsttar/OpenDRIVE) plugin allows you to manipulate OpenDRIVE road networks in Unreal Engine. It's based on esmini RoadManager (esminiRMLib).
+
+### Online OpenDRIVE viewer
+[odrviewer.io](https://odrviewer.io/) is an excellent interactive online OpenDRIVE viewer. Move around, zoom and inspect elements of the road network like roadID, laneID, successor and predecessor.
+
+### Editors
+
+[Blender Driving Scenario Creator add-on](https://github.com/johschmitz/blender-driving-scenario-creator) lets you create OpenDRIVE and OpenSCENARIO based scenarios.
+
+[Truevision Designer](https://github.com/truevisionai/designer) Fully featured editor for xodr files, you can create/edit/export OpenDRIVE maps. Free and commercial versions available.
+
+### Carla Simulator
+[Carla](http://carla.org/) is an [Unreal](https://www.unrealengine.com/) based open source simulator worth to check out.
+
+### OpenMSL
+[Open Source Model & Simulation Library](https://github.com/openmsl) is a central hub for simulation entities for virtual ADAS testing. It runs a co-simulation with esmini in a GitHub action for sensor model testing and therefore demonstrates its application with other simulation models.
+
+## Data formats
+
+[OpenDRIVE](https://www.asam.net/standards/detail/opendrive/)
+describes the road network, the static part of a scenario.
+
+[OpenSCENARIO XML](https://www.asam.net/standards/detail/openscenario-xml/)
+describes the dynamic content on top of a road network, e.g. traffic maneuvers and weather conditions.
