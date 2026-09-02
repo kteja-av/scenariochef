@@ -1,0 +1,19 @@
+id: BLD-0001
+scope: src/scenariochef/contracts determinism
+trigger: when building cross-boundary artifacts that must be byte-identical across
+  calls
+mistake: TraceMeta.created_at defaults to wall-clock now(), breaking determinism and
+  hash-stability of artifacts
+root_cause: default factory datetime.now in shared contract leaked non-determinism
+  into every artifact
+correct_rule: deterministic components must pass a fixed sentinel created_at (or use
+  semantic_hash which strips meta for identity)
+severity: HIGH
+failure_class: nondeterministic-artifact
+confidence: '0.9'
+source: wave-B1-c3
+created_at: '2026-09-02'
+last_observed: '2026-09-02'
+status: ACTIVE
+times_prevented: 0
+failure_count: 0

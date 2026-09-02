@@ -1,0 +1,16 @@
+id: BLD-0002
+scope: packaging pyproject
+trigger: when adding package data files (yaml/xsd/maps) under src/
+mistake: hatchling wheel omits non-python data files unless package-data is configured,
+  breaking installed-package runtime
+root_cause: pyproject had no package-data declaration
+correct_rule: declare package data in pyproject for any src-scenariochef data assets
+severity: MEDIUM
+failure_class: packaging-omission
+confidence: '0.85'
+source: wave-B1-c3
+created_at: '2026-09-02'
+last_observed: '2026-09-02'
+status: ACTIVE
+times_prevented: 0
+failure_count: 0
