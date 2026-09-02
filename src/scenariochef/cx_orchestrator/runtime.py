@@ -26,8 +26,8 @@ def _run_one_trajectory(trajectory_id: str) -> None:
     run_c3("<query>", trajectory_id)
     scenario_ir = run_c4(intent_spec, trajectory_id)
     generated_scenario = run_c5(scenario_ir, trajectory_id)
-    run_c6(generated_scenario, trajectory_id)
-    run_record = run_c7(generated_scenario, trajectory_id)
+    run_c6(generated_scenario, trajectory_id)  # type: ignore[arg-type]
+    run_record = run_c7(generated_scenario, trajectory_id)  # type: ignore[arg-type]
     evaluation_report = run_c8(run_record, trajectory_id)
     feedback_action = run_c9(evaluation_report, trajectory_id)
     run_c10(feedback_action, trajectory_id)
