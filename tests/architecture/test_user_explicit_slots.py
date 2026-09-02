@@ -29,7 +29,8 @@ def test_c9_exposes_no_slot_mutation_api():
 
 def _is_skeleton(p: Path) -> bool:
     """A runtime is still the no-logic skeleton if it returns placeholder tokens."""
-    return "<" in p.read_text() and "RequestSpec>" in p.read_text()
+    src = p.read_text()
+    return ":IntentSpec>" in src or ":FeedbackAction>" in src
 
 
 def test_c2_c9_reference_user_explicit_contract():
