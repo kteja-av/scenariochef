@@ -10,7 +10,9 @@ K3 matrix (C3-Q5), and map identity only from the C3 store (never topology — C
 
 from __future__ import annotations
 
+import xml.etree.ElementTree as ET
 from decimal import Decimal
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from scenariochef import trace
@@ -44,6 +46,23 @@ if TYPE_CHECKING:
 
 _PRODUCER = "C4"
 _DEFAULT_MAP = "straight_2lane"
+
+# Keyword rules for automatic map selection when the request names no map explicitly
+# (C1-Q2: an explicit map_id always wins). Each rule maps a keyword in the request text
+# to a C3-registered map id (assets/scenario_db/esmini-maps/, see knowledge.yaml).
+# First matching rule in declaration order wins; deterministic.
+_MAP_SELECTION_RULES: tuple[tuple[str, str], ...] = (
+    ("intersection", "esmini_crossing_8"),
+    ("crossing", "esmini_crossing_8"),
+    ("junction", "esmini_crossing_8"),
+    ("merge", "esmini_highway_merge"),
+    ("highway", "esmini_highway_merge"),
+    ("motorway", "esmini_highway_merge"),
+    ("parking", "esmini_parking_lot"),
+    ("overtake", "esmini_two_plus_one"),
+    ("curve", "esmini_curve"),
+    ("bend", "esmini_curve"),
+)
 # Lane span of the default map (lanes -1..1); the E08 lane-existence check is a
 # topology claim and so only valid for the known default map (C3-Q3 stays intact:
 # C3 never answers topology; C4 emits the suggestion only for its known default map).
@@ -103,8 +122,36 @@ def _require_acked(provenance: SlotProvenance, context: str) -> None:
         )
 
 
-def _resolve_map_id(intent_spec: IntentSpec) -> str:
-    """Map id from a ``map`` constraint or any param key ``map_id``; else the default."""
+def _map_topology_for(map_id: str) -> dict[int, float] | None:
+    """Road lengths for the selected map (id -> length in meters), or None.
+
+    Reads the C3-registered map asset path. This is generation input (binding a
+    concrete spawn s), not a topology judgment — C6 S3 remains the validator that
+    FAILs out-of-range spawns (C3-Q3 boundary).
+    """
+    asset = get_store().get_map(map_id)
+    if asset is None or not asset.path:
+        return None
+    path = (Path(__file__).resolve().parents[3] / asset.path).resolve()
+    if not path.is_file():
+        return None
+    try:
+        root = ET.parse(path).getroot()
+    except ET.ParseError:
+        return None
+    lengths: dict[int, float] = {}
+    for road in root.iter("road"):
+        try:
+            rid = int(road.get("id", ""))
+            max_s = float(road.get("length", ""))
+        except ValueError:
+            continue
+        lengths[rid] = max_s
+    return lengths or None
+
+
+def _explicit_map_id(intent_spec: IntentSpec) -> str | None:
+    """Map id named explicitly by the request, or None (C1-Q2: explicit wins)."""
     for constraint in intent_spec.constraints:
         if constraint.name.lower() == "map" and isinstance(constraint.value, str):
             return constraint.value
@@ -116,6 +163,26 @@ def _resolve_map_id(intent_spec: IntentSpec) -> str:
         for key, value in trigger.params.items():
             if key.lower() == "map_id" and isinstance(value, str):
                 return value
+    return None
+
+
+def _auto_select_map(request_text: str) -> str | None:
+    """First keyword-rule match against C3-registered maps, or None."""
+    text = (request_text or "").lower()
+    for keyword, map_id in _MAP_SELECTION_RULES:
+        if keyword in text and get_store().get_map(map_id) is not None:
+            return map_id
+    return None
+
+
+def _resolve_map_id(intent_spec: IntentSpec, request_text: str = "") -> str:
+    """Explicit map id, else keyword auto-selection, else the Phase-1 default map."""
+    explicit = _explicit_map_id(intent_spec)
+    if explicit is not None:
+        return explicit
+    auto = _auto_select_map(request_text)
+    if auto is not None:
+        return auto
     return _DEFAULT_MAP
 
 
@@ -239,13 +306,16 @@ def _to_ir_behavior(
 
 
 def build_ir(
-    intent_spec: IntentSpec, evidence: EvidenceBundle | None = None
+    intent_spec: IntentSpec,
+    evidence: EvidenceBundle | None = None,
+    request_text: str = "",
 ) -> ScenarioIR:
     """Compile a validated IntentSpec to a frozen ScenarioIR (core, no trace emitted).
 
     ``evidence`` is accepted for interface compatibility (C3 bundle provenance); map
     identity resolution still queries the C3 store directly, since C3 is static
-    knowledge (C3-Q4). Deterministic: same intent -> same IR.
+    knowledge (C3-Q4). ``request_text`` drives keyword map auto-selection when the
+    request names no map explicitly. Deterministic: same intent -> same IR.
     """
     del evidence  # map identity comes from the C3 store; evidence is provenance only.
 
@@ -258,10 +328,14 @@ def build_ir(
     )
 
     # Map identity (via C3 store — identity only, C3-Q3).
-    map_id = _resolve_map_id(intent_spec)
+    map_id = _resolve_map_id(intent_spec, request_text)
     ir_map = _map_identity(map_id)
 
-    # Actors.
+    # Actors. Lane-relative spawns are clamped to the selected map's road length
+    # (topology data comes from the C6-owned parse; C4 only clamps, it does not
+    # re-route — C3-Q3 boundary) so auto-selected short-segment urban maps don't get
+    # out-of-range s values that esmini would silently truncate.
+    map_topology = _map_topology_for(map_id)
     actors: list[IRActor] = []
     actor_constraints: list[IRConstraint] = []
     for actor_intent in intent_spec.actors:
@@ -269,11 +343,16 @@ def build_ir(
         representative = (
             speed if isinstance(speed, float) else (speed.min + speed.max) / 2.0
         )
+        spawn = actor_intent.initial_position
+        if map_topology is not None and spawn.s_m is not None:
+            max_s = map_topology.get(int(spawn.road_id or 1))
+            if max_s is not None and spawn.s_m > max_s:
+                spawn = spawn.model_copy(update={"s_m": max_s * 0.9})
         actor = IRActor(
             name=actor_intent.name,
             kind=actor_intent.kind,
             bbox_ref=_catalog_ref(actor_intent),
-            spawn=actor_intent.initial_position,
+            spawn=spawn,
             initial_speed_mps=representative,
         )
         speed_constraint = _initial_speed_constraint(actor_intent)
@@ -323,9 +402,14 @@ def run_c4(
     intent_spec: IntentSpec,
     trajectory_id: str = "REQ-0001",
     evidence: EvidenceBundle | None = None,
+    request_text: str = "",
 ) -> ScenarioIR:
-    """Pipeline entry point: build the IR and emit the trace at step 5."""
-    ir = build_ir(intent_spec, evidence)
+    """Pipeline entry point: build the IR and emit the trace at step 5.
+
+    ``request_text`` is the raw user request (C1 ``RequestSpec.raw``), used only for
+    keyword map auto-selection; explicit map fields on the IntentSpec always win.
+    """
+    ir = build_ir(intent_spec, evidence, request_text=request_text)
     intent_digest = semantic_hash(intent_spec)[:8]
     ir_digest = semantic_hash(ir)[:8]
     trace.emit(5, "C4", "IN", f"<IntentSpec:{intent_digest}>", trajectory_id)

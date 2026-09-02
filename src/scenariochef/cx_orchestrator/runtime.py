@@ -78,6 +78,16 @@ def _sha256(data: str) -> str:
     return hashlib.sha256(data.encode()).hexdigest()
 
 
+def _request_text(request: Any) -> str:
+    """Raw request text for C4 map auto-selection (NL string or dict with 'text')."""
+    if isinstance(request, str):
+        return request
+    if isinstance(request, dict):
+        text = request.get("text")
+        return text if isinstance(text, str) else ""
+    return ""
+
+
 def _ack_c2_defaults(
     evidence: Any, acked_ids: list[str]
 ) -> Any:
@@ -303,7 +313,9 @@ def run_request(
     #    C4 builds the canonical IR from intent once; C9 revisions are recompiled
     #    through C5 (C9-Q5 RevisedIR; the ADR flow C6-FAIL→C9→C4 is honoured by the
     #    initial construction here, and C4/C6/C7 still execute in order every pass).
-    ir: ScenarioIR = run_c4(intent, trajectory_id, evidence=evidence)
+    ir: ScenarioIR = run_c4(
+        intent, trajectory_id, evidence=evidence, request_text=_request_text(request)
+    )
     _persist(ir, "ScenarioIR")
 
     iterations = 0

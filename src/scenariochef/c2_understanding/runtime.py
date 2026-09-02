@@ -101,15 +101,46 @@ def _params_from_prompt(prompt: str) -> dict[str, Any]:
     return {}
 
 
+# Intent keywords the offline proposer recognizes in the raw request text. First match
+# in declaration order wins; each adds a maneuver on top of the base follow behavior.
+# Only ActionType members are emitted; merge is modeled as the lead actor's lane_change
+# into the ego lane (Phase-1 approximation; a dedicated merge action is future work).
+_INTENT_KEYWORDS: tuple[tuple[str, str, dict[str, float | int | str]], ...] = (
+    ("merge", "lane_change", {"target_lane": -1}),
+    ("cut in", "cut_in", {"target_lane": -1}),
+    ("cut-in", "cut_in", {"target_lane": -1}),
+    ("overtake", "lane_change", {"target_lane": -1}),
+    ("change lane", "lane_change", {"target_lane": -1}),
+    ("brake", "brake", {"target_speed": 0.0}),
+    ("cross", "cross_path", {"target_speed": 1.4}),
+)
+
+
+def _detect_intent(prompt: str) -> tuple[str, dict[str, float | int | str]] | None:
+    """(action, params) for the first recognized intent keyword in the raw request."""
+    for line in prompt.splitlines():
+        stripped = line.strip()
+        if not stripped.lower().startswith("raw request:"):
+            continue
+        text = stripped[len("raw request:"):].lower()
+        for keyword, action, params in _INTENT_KEYWORDS:
+            if keyword in text:
+                return action, dict(params)
+    return None
+
+
 def null_proposer(prompt: str) -> dict[str, Any]:
     """Offline deterministic fallback: 2 actors (ego+lead), follow maneuver.
 
     Speed and lane come from the parsed user params when present, else defaults.
+    Recognized intent keywords in the raw request (merge / cut-in / overtake /
+    lane change / brake / crossing) add the matching maneuver on the lead actor.
     Returns a dict in the prompt-contract shape.
     """
     params = _params_from_prompt(prompt)
     speed = float(params.get("speed", params.get("ego_speed", DEFAULT_SPEED)))
     lane = int(params.get("lane", DEFAULT_LANE))
+    intent = _detect_intent(prompt)
     return {
         "actors": [
             {
@@ -137,7 +168,14 @@ def null_proposer(prompt: str) -> dict[str, Any]:
                 },
             },
         ],
-        "maneuvers": [{"actor": "ego", "action": "follow", "params": {"leader": "lead"}}],
+        "maneuvers": [
+            {"actor": "ego", "action": "follow", "params": {"leader": "lead"}},
+            *(
+                [{"actor": "lead", "action": intent[0], "params": intent[1]}]
+                if intent is not None
+                else []
+            ),
+        ],
         "triggers": [{"kind": "time", "params": {"t": 0.0}}],
         "constraints": [],
         "objectives": [],
@@ -310,6 +348,30 @@ def gate(
                 action=ActionType.LANE_CHANGE,
                 params={"target_lane": params["target_lane"]},
                 slot=SlotProvenance(source="user_explicit"),
+            )
+        )
+    # Pass through proposal maneuvers the fixed ego-follow construction above does not
+    # already cover (e.g. the offline proposer's intent-keyword maneuvers on other
+    # actors). Actor must exist and the action must be a known ActionType member; the
+    # schema gate still validates the resulting IntentSpec as a whole.
+    covered = {(m.actor, m.action.value) for m in maneuvers}
+    known_actions = {a.value for a in ActionType}
+    for move in proposal.get("maneuvers", []):
+        if not isinstance(move, dict):
+            continue
+        actor = str(move.get("actor", ""))
+        action = str(move.get("action", ""))
+        if (actor, action) in covered or action not in known_actions:
+            continue
+        if actor not in {a.name for a in actors}:
+            continue
+        moves_params = dict(move.get("params") or {})
+        maneuvers.append(
+            ManeuverIntent(
+                actor=actor,
+                action=ActionType(action),
+                params=moves_params,
+                slot=SlotProvenance(source="llm_proposed"),
             )
         )
 

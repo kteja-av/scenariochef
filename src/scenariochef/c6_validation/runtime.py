@@ -58,6 +58,7 @@ _TRIGGER_SPEED_THRESHOLD = 70.0
 # Fallback map path when the IR map id is not in the C3 store (mirrors C5), resolved
 # against the repo root so S3 works regardless of the invoking CWD.
 _FALLBACK_MAP = Path(__file__).resolve().parents[3] / "assets" / "maps" / "straight_2lane.xodr"
+_REPO_ROOT_C6 = Path(__file__).resolve().parents[3]
 
 
 def run_c6(
@@ -440,10 +441,36 @@ def _attr_float(el: ET.Element, key: str) -> float | None:
 
 
 def _read_xodr(gs: GeneratedScenario, scenario_ir: ScenarioIR) -> str:
-    """Return the OpenDRIVE content for S3, preferring the emitted artifact."""
+    """Return the OpenDRIVE content for S3.
+
+    Resolution order: an in-memory .xodr artifact attached to the scenario, then the
+    LogicFile path declared inside the emitted .xosc (resolved against the repo root,
+    mirroring C7's esmini ``--path``), then the Phase-1 fallback map. Validating against
+    the declared map (not the fallback) is what makes the E08/S3 spawn and lane checks
+    meaningful for auto-selected maps.
+    """
     if gs.xodr is not None:
         return gs.xodr.content
+    declared = _declared_logic_file(gs.xosc.content)
+    if declared is not None:
+        candidate = (_REPO_ROOT_C6 / declared).resolve()
+        # Path-traversal guard: the declared path must stay inside the repo.
+        if candidate.is_relative_to(_REPO_ROOT_C6) and candidate.is_file():
+            return candidate.read_text(encoding="utf-8")
     return _FALLBACK_MAP.read_text(encoding="utf-8")
+
+
+def _declared_logic_file(xosc_content: str) -> str | None:
+    """The LogicFile filepath from the emitted .xosc, or None."""
+    try:
+        root = ET.fromstring(xosc_content)
+    except ET.ParseError:
+        return None
+    logic = root.find("./RoadNetwork/LogicFile")
+    if logic is None:
+        return None
+    path = (logic.get("filepath") or "").strip()
+    return path or None
 
 
 def _parse_map(content: str) -> _MapTopology:

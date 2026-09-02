@@ -1,0 +1,23 @@
+id: ESM-0005
+scope: src/scenariochef/c6_validation src/scenariochef/c4_ir
+trigger: when validating spawn/lane facts against the scenario's map (S3/E08)
+mistake: C6 S3 validated spawns against a hardcoded fallback map (straight_2lane)
+  instead of the map the generated .xosc actually declares in its LogicFile, so
+  out-of-range spawns on auto-selected maps passed validation and only surfaced as
+  esmini runtime truncation warnings
+root_cause: the map resolution in _read_xodr ignored the .xosc RoadNetwork LogicFile;
+  adding map auto-selection without re-checking S3's data source left the validator
+  looking at the wrong file
+correct_rule: resolve the map from the emitted .xosc LogicFile (repo-root relative,
+  like C7's esmini --path) before falling back; when C4 auto-selects a map it must
+  clamp lane-relative spawn s to that map's road length (generation input, read via
+  the C3 store path) while C6 S3 stays the validator that FAILs out-of-range spawns
+severity: HIGH
+failure_class: wrong-map-validation
+confidence: '0.97'
+source: real-esmini verification session 2026-09-03
+created_at: '2026-09-03'
+last_observed: '2026-09-03'
+status: ACTIVE
+times_prevented: 0
+failure_count: 0

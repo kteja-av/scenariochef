@@ -17,6 +17,29 @@ map_assets:
     sha256: "0000000000000000000000000000000000000000000000000000000000000000"
     version: v1
     note: "sha256 is a documented placeholder digest (see header). Activation / exec not part of C3."
+  # Mirrored esmini environments (assets/scenario_db/esmini-maps/, MPL-2.0) — the
+  # sha256 placeholder policy above applies to these too; C6/C7 remain execution
+  # authority. Auto-selection keyword rules live in C4 (_MAP_SELECTION_RULES).
+  - id: esmini_crossing_8
+    path: assets/scenario_db/esmini-maps/multi_intersections.xodr
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    version: esmini-v3.7.2
+  - id: esmini_highway_merge
+    path: assets/scenario_db/esmini-maps/fabriksgatan.xodr
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    version: esmini-v3.7.2
+  - id: esmini_parking_lot
+    path: assets/scenario_db/esmini-maps/parking_lot.xodr
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    version: esmini-v3.7.2
+  - id: esmini_two_plus_one
+    path: assets/scenario_db/esmini-maps/two_plus_one.xodr
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    version: esmini-v3.7.2
+  - id: esmini_curve
+    path: assets/scenario_db/esmini-maps/curves.xodr
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    version: esmini-v3.7.2
 
 features:
   # ---- Supported (esmini docs) ----
