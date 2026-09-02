@@ -1,0 +1,19 @@
+id: DSG-0001
+scope: subagent delegation
+trigger: when a deepseek flash subagent session exceeds ~400k input tokens reading
+  large files repeatedly
+mistake: C6 implementation subagent died with response truncated by max_tokens after
+  13 turns of re-reading docs
+root_cause: prompt did not constrain read economy and the agent re-read large files
+  each turn
+correct_rule: instruct subagents explicitly to read each file once, be economical,
+  and keep prompts lean
+severity: HIGH
+failure_class: subagent-token-bloat
+confidence: '0.9'
+source: wave-B3-c6-first-attempt
+created_at: '2026-09-02'
+last_observed: '2026-09-02'
+status: ACTIVE
+times_prevented: 0
+failure_count: 0
