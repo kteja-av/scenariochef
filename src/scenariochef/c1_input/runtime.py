@@ -162,8 +162,11 @@ def run_c1(raw_input: Any, trajectory_id: str = "REQ-0001", **kwargs: Any) -> Re
     if isinstance(raw_input, str) and _is_scene_file_path(raw_input):
         return ingest_file(Path(raw_input), trajectory_id)
     if isinstance(raw_input, dict):
-        # dict alone is treated as a params-only request (empty natural-language text).
-        return ingest_nl_params("", raw_input, trajectory_id)
+        # Dict requests may carry a natural-language payload under `text`/`request`;
+        # the remaining keys are explicit params (C1-Q1 NL+params modality).
+        params = dict(raw_input)
+        nl = params.pop("text", None) or params.pop("request", "").strip()
+        return ingest_nl_params(str(nl), params, trajectory_id)
     text = raw_input if isinstance(raw_input, str) else str(raw_input)
     return ingest_nl_params(text, {}, trajectory_id)
 

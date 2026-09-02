@@ -161,7 +161,12 @@ def _find_binary() -> str | None:
     """Resolve the esmini executable via ``ESMINI_BIN`` then PATH, else ``None``."""
     env_bin = os.environ.get("ESMINI_BIN")
     if env_bin:
-        return env_bin
+        p = Path(env_bin)
+        # a set-but-nonexistent ESMINI_BIN must not crash subprocess later — treat it
+        # as absent so C7 returns SKIPPED_NO_BINARY (never raises).
+        if p.is_file():
+            return env_bin
+        return None
     return shutil.which("esmini")
 
 
