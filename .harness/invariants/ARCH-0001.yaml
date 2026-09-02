@@ -1,0 +1,12 @@
+id: ARCH-0001
+rule: C2 is the ONLY LLM agent in Phase 1; C1,C3..C10 and CX are deterministic; CX is a hardcoded DAG
+trigger:
+  - adding any LLM/AI call anywhere in the pipeline
+  - making C9 an agent
+  - giving CX free-form tool choice
+scope: src/scenariochef/
+severity: CRITICAL
+required_check: tests/architecture/test_single_intelligence.py::test_no_llm_outside_c2
+origin: CX-Q1, DERIVED-8, DERIVED-18, C1-Q6, C8-Q2, C9-Q2
+created_at: 2026-09-02
+last_verified: 2026-09-02

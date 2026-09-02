@@ -1,0 +1,25 @@
+id: CHK-0001
+scope:
+  repo: scenariochef
+  area: harness-verification
+  files:
+    - .harness/
+trigger:
+  when:
+    - verifying work produced by a text-only model
+    - choosing a verification channel for subagent output
+mistake: passing a screenshot/image to a text-only model for verification
+root_cause: agent input modality was not checked before choosing the verification channel
+correct_rule: match the verification method to the model input modality — text-only models must verify via structured records (shape counts, JSON, line counts), never screenshots
+required_check: null
+example_fix: re-ran tldraw verification via JSON records (39 shapes, 48 bindings) instead of image reads
+severity: HIGH
+failure_class: verification-modality-mismatch
+confidence: 0.95
+source: checkpoint-1 and checkpoint-2 (both hits)
+status: ACTIVE
+level: rule
+created_at: 2026-08-29
+last_observed: 2026-08-29
+times_prevented: 2
+failure_count: 2

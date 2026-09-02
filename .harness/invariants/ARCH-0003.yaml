@@ -1,0 +1,12 @@
+id: ARCH-0003
+rule: C3 is static knowledge only — no runtime write-back; unknown is never coerced to yes; C3 answers map identity, never topology
+trigger:
+  - implementing C3 graph updates
+  - wiring C6/C7 dry-run results into C3
+  - returning lane-existence answers from C3
+scope: src/scenariochef/c3_knowledge/
+severity: CRITICAL
+required_check: tests/architecture/test_c3_static_knowledge.py
+origin: C3-Q2, C3-Q3, C3-Q4, DERIVED-2
+created_at: 2026-09-02
+last_verified: 2026-09-02

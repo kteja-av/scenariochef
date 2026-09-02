@@ -1,0 +1,23 @@
+{
+  "components": [
+    {"id": "CX", "package": "cx_orchestrator", "type": "DAG", "calls": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10"]},
+    {"id": "C1", "package": "c1_input", "type": "Det", "calls": []},
+    {"id": "C2", "package": "c2_understanding", "type": "LLM", "calls": ["C3"]},
+    {"id": "C3", "package": "c3_knowledge", "type": "Det", "calls": []},
+    {"id": "C4", "package": "c4_ir", "type": "Det", "calls": ["C3"]},
+    {"id": "C5", "package": "c5_generation", "type": "Det", "calls": []},
+    {"id": "C6", "package": "c6_validation", "type": "Det", "calls": ["C7-preflight"]},
+    {"id": "C7", "package": "c7_esmini", "type": "Det", "calls": []},
+    {"id": "C8", "package": "c8_evaluation", "type": "Det", "calls": []},
+    {"id": "C9", "package": "c9_feedback", "repair_calls": ["C4"], "type": "Det", "calls": []},
+    {"id": "C10", "package": "c10_management", "type": "Det", "calls": []}
+  ],
+  "frozen_decisions_doc": "docs/checkpoint.md",
+  "adrs": "docs/adr/0001-0012",
+  "dependencies": {
+    "python": ">=3.11",
+    "pydantic": ">=2.0",
+    "scenariogeneration": "0.16.6"
+  },
+  "single_llm_boundary": "C2"
+}

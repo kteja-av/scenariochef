@@ -1,0 +1,25 @@
+id: CHK-0002
+scope:
+  repo: scenariochef
+  area: delegation
+  files:
+    - .harness/
+trigger:
+  when:
+    - selecting a checkpoint writer or any fallback agent
+    - planning a chain of subagent writers
+mistake: assuming a specific named model (Sonnet/grok) would be available and within quota when needed
+root_cause: availability and quota were not checked before committing to a single writer
+correct_rule: enumerate the fallback chain (independence + quota) before delegating, and verify quota before relying on the first candidate
+required_check: null
+example_fix: ranked writer fallbacks in advance; fell back to deepseek singularity cleanly on the next checkpoint
+severity: MEDIUM
+failure_class: delegation-quota-planning
+confidence: 0.9
+source: checkpoint-1 and checkpoint-2 (both hits)
+status: ACTIVE
+level: rule
+created_at: 2026-08-29
+last_observed: 2026-08-29
+times_prevented: 2
+failure_count: 2
