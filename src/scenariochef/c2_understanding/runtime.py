@@ -394,9 +394,9 @@ def gate(
     for c in proposal.get("constraints", []):
         constraints.append(
             ConstraintIntent(
-                name=str(c["name"]),
-                value=_coerce_scalar(c["value"]),
-                unit=str(c["unit"]),
+                name=str(c.get("name", "")),
+                value=_coerce_scalar(c.get("value", 0.0)),
+                unit=str(c.get("unit", "none")),
             )
         )
     objectives: list[ObjectiveStub] = []
