@@ -20,7 +20,7 @@ class ActionLog(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     actor_component: Literal["C2", "C9"]
-    action_kind: Literal["propose", "repair", "explore"]
+    action_kind: Literal["propose", "repair", "explore", "sim_repair"]
     payload_hash: str
     ts: str = ""  # ISO-8601 UTC
 

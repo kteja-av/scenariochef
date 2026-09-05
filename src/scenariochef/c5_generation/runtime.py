@@ -154,15 +154,26 @@ def _trace_meta(scenario_ir: ScenarioIR) -> TraceMeta:
     )
 
 
+# Name of the sweepable ego-speed parameter. When the ego's initial speed is a Range
+# (C4-Q4), C5 declares this parameter and binds the init speed action to a $ref so
+# esmini --param_dist sweeps (C9 explore) can vary it without recompiling.
+_SWEEP_PARAM = "egoSpeed"
+
+
 def _serialize(scenario_ir: ScenarioIR, overrides: dict[str, float]) -> str:
     """Assemble and serialize one OpenSCENARIO document to a deterministic string."""
     entities = _build_entities(scenario_ir)
     init = _build_init(scenario_ir, overrides)
     story = _build_storyboard(scenario_ir, overrides, init)
+    parameters = xosc.ParameterDeclarations()
+    if _has_ego_speed_range(scenario_ir):
+        parameters.add_parameter(
+            xosc.Parameter(_SWEEP_PARAM, xosc.ParameterType.double, "10")
+        )
     scenario = xosc.Scenario(
         name=f"{scenario_ir.header.request_id}",
         author=_AUTHOR,
-        parameters=xosc.ParameterDeclarations(),
+        parameters=parameters,
         entities=entities,
         storyboard=story,
         roadnetwork=xosc.RoadNetwork(roadfile=_resolve_map_path(scenario_ir)),
@@ -363,6 +374,17 @@ def _actor_initial_speed(
     return 0.0
 
 
+def _has_ego_speed_range(scenario_ir: ScenarioIR) -> bool:
+    """True when the IR carries an ego initial-speed Range constraint (C4-Q4)."""
+    for constraint in scenario_ir.constraints:
+        if (
+            constraint.name == "ego_speed_range"
+            and isinstance(constraint.value, Range)
+        ):
+            return True
+    return False
+
+
 def _build_init(scenario_ir: ScenarioIR, overrides: dict[str, float]) -> xosc.Init:
     init = xosc.Init()
     for i, actor in enumerate(scenario_ir.actors):
@@ -373,10 +395,18 @@ def _build_init(scenario_ir: ScenarioIR, overrides: dict[str, float]) -> xosc.In
             # rather than emitting a non-numeric speed into the action.
             speed = speed.min
         init.add_init_action(actor.name, xosc.TeleportAction(_spawn_position(actor.spawn)))
+        # Ego speed action binds to the $egoSpeed parameter when the declared speed is
+        # a Range (sweepable via esmini --param_dist, C9 explore); concrete variant
+        # runs (overrides present) keep their literal expanded value.
+        speed_value: float | str = (
+            f"${_SWEEP_PARAM}"
+            if actor.name == "ego" and _has_ego_speed_range(scenario_ir) and not overrides
+            else float(speed)
+        )
         init.add_init_action(
             actor.name,
             xosc.AbsoluteSpeedAction(
-                float(speed),
+                speed_value,
                 xosc.TransitionDynamics(xosc.DynamicsShapes.step, xosc.DynamicsDimension.time, 0),
             ),
         )

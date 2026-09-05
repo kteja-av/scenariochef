@@ -117,6 +117,8 @@ def run_c7(
     config: RunConfig | None = None,
     mode: Literal["preflight", "full"] = "full",
     workdir: Path | None = None,
+    param_dist_path: Path | None = None,
+    param_permutation: int | None = None,
 ) -> RunRecord:
     """Execute one esmini run and return the ``RunRecord`` (preflight or full).
 
@@ -155,6 +157,13 @@ def run_c7(
     xosc_path.write_text(generated_scenario.xosc.content, encoding="utf-8")
 
     argv = _build_argv(binary, xosc_path, run_config, mode)
+    if param_dist_path is not None and param_permutation is not None:
+        # Parameter-sweep mode: the --osc target is the dist file (which names the
+        # scenario via its ScenarioFile element); esmini substitutes permutation i.
+        argv += [
+            "--param_dist", str(param_dist_path),
+            "--param_permutation", str(param_permutation),
+        ]
     wall_clock_timeout = run_config.max_time_s + _WALL_CLOCK_SLACK_S
 
     start = time.monotonic()
@@ -175,9 +184,14 @@ def run_c7(
         returncode, stdout_all, stderr_all, timed_out, run_config, wall_clock_timeout
     )
 
-    # --csv_logger writes <stem>_states.csv; keep the legacy <stem>.csv check for
-    # esmini builds that auto-log next to the scenario file.
+    # --csv_logger writes <stem>_states.csv; in permutation mode esmini appends
+    # "_K_of_N" to the filename. Keep the legacy <stem>.csv check for esmini builds
+    # that auto-log next to the scenario file.
     csv_path = dir_ / f"{xosc_path.stem}_states.csv"
+    if not csv_path.exists() and param_permutation is not None:
+        suffix_matches = sorted(dir_.glob(f"{xosc_path.stem}_states_*_of_*.csv"))
+        if suffix_matches:
+            csv_path = suffix_matches[0]
     if not csv_path.exists():
         csv_path = dir_ / f"{xosc_path.stem}.csv"
     simulation_csv_path = str(csv_path) if csv_path.exists() else None
@@ -284,3 +298,110 @@ def _h8(model: BaseModel) -> str:
     from scenariochef.contracts.common import content_hash
 
     return content_hash(model)[:8]
+
+# --- Parameter sweep (esmini --param_dist) ----------------------------------
+
+# esmini ParameterValueDistribution template (verified against esmini v3.7.2 with
+# --return_nr_permutations and per-permutation CSV output; element/attribute names
+# follow the OSC ParameterValueDistribution standard as parsed by
+# OSCParameterDistribution.cpp: attribute-based ParameterAssignment/Element).
+_PARAM_DIST_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
+<OpenSCENARIO>
+  <FileHeader revMajor="1" revMinor="1" date="2000-01-01T00:00:00"
+              description="ScenarioChef parameter sweep" author="ScenarioChef"/>
+  <ParameterValueDistribution>
+    <ScenarioFile filepath="{scenario_filename}"/>
+    <Deterministic>
+      <DeterministicSingleParameterDistribution parameterName="{param_name}">
+        <DistributionSet>
+{elements}
+        </DistributionSet>
+      </DeterministicSingleParameterDistribution>
+    </Deterministic>
+  </ParameterValueDistribution>
+</OpenSCENARIO>
+"""
+
+_NR_PERMUTATIONS_MARKER = "Nr permutations: "
+
+
+def run_c7_sweep(
+    generated_scenario: GeneratedScenario,
+    param_name: str,
+    values: list[float],
+    trajectory_id: str = "REQ-0001",
+    config: RunConfig | None = None,
+    workdir: Path | None = None,
+) -> list[RunRecord]:
+    """Run an esmini parameter sweep over ``values`` for ``param_name``.
+
+    Writes a ParameterValueDistribution referencing the generated .xosc, asks esmini
+    for the permutation count, then executes one run per permutation (the .xosc must
+    reference the parameter as ``${param_name}`` — the caller (CX/C9) is responsible
+    for emitting ParameterDeclarations and $refs; the sweep skips cleanly when esmini
+    reports 0 permutations). Returns one RunRecord per permutation, in order.
+    """
+    if not values:
+        return []
+    run_config = config if config is not None else make_config()
+    binary = _find_binary()
+    if binary is None:
+        stderr_note = "esmini binary not found (set ESMINI_BIN)"
+        return [
+            RunRecord(
+                meta=TraceMeta(
+                    request_id=generated_scenario.meta.request_id,
+                    trajectory_id=trajectory_id,
+                    created_at=_DETERMINISTIC_CREATED_AT,
+                    produced_by=_PRODUCER,
+                ),
+                config=run_config,
+                mode="full",
+                exit_code=None,
+                stderr_tail=stderr_note,
+                duration_s=0.0,
+                status=RunStatus.SKIPPED_NO_BINARY,
+            )
+        ]
+
+    dir_ = workdir if workdir is not None else Path(tempfile.mkdtemp(prefix="c7_sweep_"))
+    dir_.mkdir(parents=True, exist_ok=True)
+    xosc_path = dir_ / f"{generated_scenario.scenario_name}.xosc"
+    xosc_path.write_text(generated_scenario.xosc.content, encoding="utf-8")
+    dist_path = dir_ / f"{generated_scenario.scenario_name}.pvd.xosc"
+    elements = "\n".join(f'          <Element value="{v}"/>' for v in values)
+    dist_path.write_text(
+        _PARAM_DIST_TEMPLATE.format(
+            scenario_filename=xosc_path.name,
+            param_name=param_name,
+            elements=elements,
+        ),
+        encoding="utf-8",
+    )
+
+    # Discover the permutation count (esmini prints "Nr permutations: N").
+    probe = subprocess.run(
+        [binary, "--headless", "--osc", str(dist_path), "--return_nr_permutations"],
+        capture_output=True, text=True, timeout=30,
+    )
+    probe_out = probe.stdout or ""
+    if _NR_PERMUTATIONS_MARKER not in probe_out:
+        return []
+    count = int(probe_out.split(_NR_PERMUTATIONS_MARKER, 1)[1].split()[0])
+    if count <= 0:
+        return []
+
+    records: list[RunRecord] = []
+    for index in range(count):
+        records.append(
+            run_c7(
+                generated_scenario,
+                trajectory_id=trajectory_id,
+                config=run_config,
+                mode="full",
+                workdir=dir_,
+                param_dist_path=dist_path,
+                param_permutation=index,
+            )
+        )
+    return records

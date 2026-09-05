@@ -21,6 +21,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -84,6 +85,19 @@ def build_prompt(request_spec: RequestSpec, evidence: EvidenceBundle | None) -> 
         for item in (*evidence.definitions, *evidence.constraints):
             lines.append(f"  {item.id}: {item.claim}")
     lines.append("Never invent facts. Keep USER-EXPLICIT values verbatim.")
+    lines.append(
+        "Schema constraints (violations are rejected): "
+        "position.lane_id must be -1, 0, or 1 unless the request states another lane; "
+        "positions use frame='lane_relative' with road_id=1 and s_m in [0, 200]; "
+        "actions must be one of speed_change, lane_change, follow, brake, cut_in, "
+        "cross_path, teleport; objective kinds must be one of ttc, pet, collision, "
+        "completion, custom; numbers are plain JSON numbers (never strings). "
+        "If a slot is not stated in the request and you cannot infer it, omit it — "
+        "do not guess lane numbers or speeds. "
+        "When the request states an interval (e.g. 'between 10 and 20'), emit the "
+        "constraint value as {\"min\": 10, \"max\": 20, \"unit\": \"mps\"} "
+        "instead of a single number, and name speed intervals exactly 'ego_speed_range'."
+    )
     return "\n".join(lines)
 
 
@@ -386,12 +400,21 @@ def gate(
             )
         )
     objectives: list[ObjectiveStub] = []
+    known_kinds = {k.value for k in ObjectiveKind}
     for obj in proposal.get("objectives", []):
+        raw_kind = str(obj.get("kind", "custom"))
+        # LLMs invent kinds (e.g. an evidence id); the C8 rulebook owns meaning, so
+        # anything outside the enum coerces to "custom" with the original preserved
+        # in the description rather than crashing the gate.
+        kind = raw_kind if raw_kind in known_kinds else ObjectiveKind.CUSTOM.value
+        description = str(obj.get("description", ""))
+        if raw_kind not in known_kinds and raw_kind and raw_kind not in description:
+            description = f"{description} [{raw_kind}]".strip()
         objectives.append(
             ObjectiveStub(
                 id=str(obj.get("id", "")),
-                kind=ObjectiveKind(obj.get("kind", "custom")),
-                description=str(obj.get("description", "")),
+                kind=ObjectiveKind(kind),
+                description=description,
                 params=dict(obj.get("params", {})),
             )
         )
@@ -425,8 +448,19 @@ def run_c2(
     evidence: EvidenceBundle | None = None,
     proposer: Callable[[str], dict[str, Any]] | None = None,
 ) -> IntentSpec:
-    """Propose and gate an IntentSpec for a request (offline-safe by default)."""
-    _proposer = proposer if proposer is not None else null_proposer
+    """Propose and gate an IntentSpec for a request.
+
+    Proposer resolution: an explicit ``proposer`` argument wins; otherwise a real LLM
+    is used when ``C2_LLM_API_KEY``/``COMMAND_CODE_API_KEY`` is set (CommandCodeProposer,
+    schema-gated per C2-Q4); otherwise the offline deterministic ``null_proposer`` keeps
+    the pipeline runnable with no network.
+    """
+    if proposer is not None:
+        _proposer = proposer
+    elif os.environ.get("C2_LLM_API_KEY") or os.environ.get("COMMAND_CODE_API_KEY"):
+        _proposer = CommandCodeProposer()
+    else:
+        _proposer = null_proposer
     prompt = build_prompt(request_spec, evidence)
     proposal = _proposer(prompt)
     last_proposals[trajectory_id] = proposal
@@ -441,6 +475,111 @@ def run_c2(
     return spec
 
 
+class CommandCodeProposer:
+    """LLM proposer over any OpenAI-compatible chat.completions endpoint.
+
+    Reads its connection from env vars with command-code/Laguna defaults (the
+    ``[model.laguna]`` block of the Grok Build config.toml):
+
+    - ``C2_LLM_API_KEY`` (required; falls back to ``COMMAND_CODE_API_KEY``)
+    - ``C2_LLM_MODEL``   (default ``poolside/laguna-s-2.1-free``)
+    - ``C2_LLM_BASE_URL``(default ``https://api.commandcode.ai/provider/v1/``)
+
+    ``openai`` is imported lazily so C2 stays offline-safe without the package
+    (ARCH-0001). Output parsing is strict: JSON after stripping optional code fences,
+    one repair retry on a malformed first response, then ``ValueError`` — the schema
+    gate in ``gate()`` remains the authority either way (C2-Q4).
+    """
+
+    _model: str
+    _client: Any
+
+    def __init__(self) -> None:
+        import openai as _openai  # guarded import (ARCH-0001): offline-safe without the pkg
+
+        api_key = os.environ.get("C2_LLM_API_KEY") or os.environ.get(
+            "COMMAND_CODE_API_KEY"
+        )
+        if not api_key:
+            raise RuntimeError(
+                "C2_LLM_API_KEY (or COMMAND_CODE_API_KEY) environment variable is not set"
+            )
+        self._model = os.environ.get("C2_LLM_MODEL", "poolside/laguna-s-2.1-free")
+        base_url = os.environ.get(
+            "C2_LLM_BASE_URL", "https://api.commandcode.ai/provider/v1/"
+        )
+        self._client: Any = _openai.OpenAI(api_key=api_key, base_url=base_url)
+
+    _MAX_ATTEMPTS = 3
+    _RETRY_BACKOFF_S = 2.0
+
+    def __call__(self, prompt: str) -> dict[str, Any]:
+        last_error: Exception | None = None
+        for attempt in range(self._MAX_ATTEMPTS):
+            text = ""
+            try:
+                text = self._complete(prompt)
+                return _extract_json(text)
+            except ValueError as exc:
+                last_error = exc
+                # One strict repair round: re-ask with the offending output attached.
+                prompt = (
+                    "Your previous reply was not valid JSON. Reply again with ONLY the "
+                    "JSON object, no prose, no code fences.\n\nPrevious reply:\n"
+                    f"{text[:2000]}\n\nTask:\n{prompt}"
+                )
+            except Exception as exc:  # transient API errors (429/5xx/timeout)
+                last_error = exc
+            if attempt + 1 < self._MAX_ATTEMPTS:
+                time.sleep(self._RETRY_BACKOFF_S * (attempt + 1))
+        raise RuntimeError(
+            f"LLM proposer failed after {self._MAX_ATTEMPTS} attempts: {last_error}"
+        ) from last_error
+
+    def _complete(self, prompt: str) -> str:
+        response = self._client.chat.completions.create(
+            model=self._model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You slot-fill an OpenSCENARIO scenario intent. "
+                        "Reply with ONLY a JSON object matching the requested shape. "
+                        "No prose, no markdown fences."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.2,
+            max_tokens=2000,
+        )
+        content = response.choices[0].message.content or ""
+        return content.strip()
+
+
+def _extract_json(text: str) -> dict[str, Any]:
+    """Parse the first JSON object in ``text``, tolerating ```json fences."""
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        # drop the fence line(s)
+        lines = cleaned.splitlines()
+        cleaned = "\n".join(lines[1:])
+        if cleaned.rstrip().endswith("```"):
+            cleaned = cleaned.rstrip()[:-3]
+    cleaned = cleaned.strip()
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError:
+        # find the outermost braces and retry
+        start, end = cleaned.find("{"), cleaned.rfind("}")
+        if start == -1 or end <= start:
+            raise ValueError(f"no JSON object in LLM reply: {text[:200]!r}")
+        parsed = json.loads(cleaned[start : end + 1])
+    if not isinstance(parsed, dict):
+        raise ValueError(f"LLM reply is not a JSON object: {text[:200]!r}")
+    return parsed
+
+
 class SpaceXAIProposer:
     """Optional real LLM proposer. ``openai`` is imported lazily (ARCH-0001).
 
@@ -451,7 +590,7 @@ class SpaceXAIProposer:
     _client: Any
 
     def __init__(self) -> None:
-        import openai as _openai  # type: ignore[import-not-found]  # guarded import (ARCH-0001)
+        import openai as _openai  # guarded import (ARCH-0001): offline-safe without the pkg
 
         api_key = os.environ.get("XAI_API_KEY")
         if not api_key:

@@ -25,6 +25,7 @@ from scenariochef.contracts.common import Range, SlotProvenance
 from scenariochef.contracts.evaluation_report import EvaluationReport, Metric
 from scenariochef.contracts.feedback_action import FeedbackAction
 from scenariochef.contracts.generated_scenario import ParameterBinding
+from scenariochef.contracts.run_record import RunRecord
 from scenariochef.contracts.scenario_ir import IRBehavior, IRConstraint, ScenarioIR
 from scenariochef.contracts.validation_report import (
     ErrorTaxonomy,
@@ -58,13 +59,13 @@ def _is_user_explicit(obj: Any) -> bool:
 
 
 def run_c9(
-    report: ValidationReport | EvaluationReport,
+    report: ValidationReport | EvaluationReport | RunRecord,
     trajectory_id: str = "REQ-0001",
     scenario_ir: ScenarioIR | None = None,
     iteration: int = 0,
     last_metrics: list[Metric] | None = None,
 ) -> FeedbackAction:
-    """Dispatch to repair (ValidationReport) or explore (EvaluationReport) by type."""
+    """Dispatch to repair/explore/simulator-repair by report type (C9-Q1 split)."""
     if isinstance(report, ValidationReport):
         if scenario_ir is None:
             raise ValueError("run_c9: scenario_ir required for repair")
@@ -73,6 +74,11 @@ def run_c9(
         if scenario_ir is None:
             raise ValueError("run_c9: scenario_ir required for explore")
         return plan_explore(report, scenario_ir, iteration, last_metrics)
+    # Simulator feedback (C7 RunRecord): the esmini execution feeds the loop too.
+    if isinstance(report, RunRecord):
+        if scenario_ir is None:
+            raise ValueError("run_c9: scenario_ir required for simulator repair")
+        return plan_simulator_repair(report, scenario_ir, iteration)
     raise TypeError(f"run_c9: unsupported report type {type(report)!r}")
 
 
@@ -181,6 +187,89 @@ def plan_repair(
     return _build(validation_report, "repair", iteration=iteration,
                   rationale=f"unhandled taxonomy {code}; escalate", escalate_to_user=True,
                   escalation_reason=first.repair_hint, stop=True)
+
+
+# esmini runtime-error signatures from stdout/stderr (verified against esmini v3.7.2).
+# Map/catalog/locating failures are configuration problems C9 must not paper over —
+# they escalate (DERIVED-16 spirit: don't silently rewrite what the user asked for).
+# Transient physics errors (zero-width lane while moving) also escalate since they
+# indicate a map/scenario mismatch, not a parameter issue.
+_SIMULATOR_ERROR_RULES: tuple[tuple[str, str, str], ...] = (
+    # (stdout/stderr substring, classification, rationale)
+    ("Failed to locate OpenDRIVE file", "map_missing",
+     "esmini could not locate the map file"),
+    ("Couldn't locate OpenSCENARIO file", "catalog_missing",
+     "esmini could not resolve a catalog"),
+    ("is or became zero width", "map_topology_runtime",
+     "vehicle left the drivable surface (lane width/topology mismatch)"),
+)
+# Soft findings: 3D model/texture misses are visual-only - esmini continues with a
+# bounding box - so they are recorded as rationale, not escalated.
+_SIMULATOR_SOFT_RULES: tuple[str, ...] = (
+    "3D model ",  # e.g. '3D model ../models/car_white.osgb not located'
+)
+
+
+def plan_simulator_repair(
+    run_record: Any,
+    scenario_ir: ScenarioIR,
+    iteration: int = 0,
+) -> FeedbackAction:
+    """Classify esmini runtime failures and plan repair from the RunRecord (S-REPAIR).
+
+    The simulator is execution authority (C3-Q2/DERIVED-2): a non-COMPLETED run or a
+    hard load/runtime error in the process output feeds back into C9 here. Rules:
+    - CRASHED/HUNG → stop (a parameter tweak will not fix a simulator-level fault; the
+      loop budget (C9-Q4) should not burn retries on it).
+    - Missing map/catalog/asset or runtime topology errors → escalate to the user.
+    - COMPLETED with no hard errors → no action (rationale only).
+    """
+    trace.emit(10, "C9", "IN", f"<RunRecord:{_h(run_record)}>",
+               getattr(getattr(run_record, "meta", None), "trajectory_id", "REQ-0001"))
+
+    status = getattr(run_record, "status", None)
+    status_value = getattr(status, "value", str(status))
+    output = " ".join(
+        part or "" for part in (
+            getattr(run_record, "stdout_tail", ""),
+            getattr(run_record, "stderr_tail", ""),
+        )
+    )
+
+    if iteration >= MAX_ITERATIONS:
+        return _build(run_record, "repair", iteration=iteration, stop=True,
+                      stop_reason="max_iterations")
+
+    if status_value in ("crashed", "hung"):
+        return _build(
+            run_record, "repair", iteration=iteration,
+            rationale=(
+                f"esmini run {status_value}; simulator-level fault, "
+                "not repairable by parameter change"
+            ),
+            stop=True, stop_reason="none",
+        )
+
+    for signature, classification, rationale in _SIMULATOR_ERROR_RULES:
+        if signature in output:
+            return _build(
+                run_record, "repair", iteration=iteration,
+                rationale=f"{classification}: {rationale}",
+                escalate_to_user=True,
+                escalation_reason=f"esmini {classification}: {rationale}",
+                stop=True,
+            )
+
+    if any(sig in output for sig in _SIMULATOR_SOFT_RULES):
+        return _build(
+            run_record, "repair", iteration=iteration,
+            rationale="visual asset(s) missing (esmini renders bounding boxes); run usable",
+        )
+
+    return _build(
+        run_record, "repair", iteration=iteration,
+        rationale="esmini run clean; no simulator feedback to apply",
+    )
 
 
 def plan_explore(

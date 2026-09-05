@@ -78,6 +78,46 @@ def _sha256(data: str) -> str:
     return hashlib.sha256(data.encode()).hexdigest()
 
 
+def _run_ego_speed_sweep(
+    instance: Any,
+    ir: ScenarioIR,
+    trajectory_id: str,
+    headless: bool,
+) -> list[Any]:
+    """Run the esmini parameter sweep for the ego speed range, or [] when n/a.
+
+    Candidates come from the IR's ``ego_speed_range`` constraint (C4-Q4 range);
+    the scenario must reference ``$egoSpeed`` for esmini to substitute values
+    (C5 emits that automatically for ranged ego speeds).
+    """
+    from scenariochef.c7_esmini.runtime import make_config, run_c7_sweep
+    from scenariochef.contracts.common import Range as _Range
+
+    range_constraint = next(
+        (
+            c for c in ir.constraints
+            if c.name == "ego_speed_range" and isinstance(c.value, _Range)
+        ),
+        None,
+    )
+    if range_constraint is None:
+        return []
+    if "$egoSpeed" not in instance.xosc.content:
+        return []
+    rng = range_constraint.value
+    if not isinstance(rng, _Range):
+        return []
+    lo, hi = rng.min, rng.max
+    candidates = [lo, (lo + hi) / 2.0, hi]
+    return run_c7_sweep(
+        instance,
+        "egoSpeed",
+        candidates,
+        trajectory_id=trajectory_id,
+        config=make_config(headless=headless),
+    )
+
+
 def _request_text(request: Any) -> str:
     """Raw request text for C4 map auto-selection (NL string or dict with 'text')."""
     if isinstance(request, str):
@@ -383,7 +423,9 @@ def run_request(
 
         validation_outcome = "passed"
 
-        # e. C7 full run (first instance; batch cap) then C8 evaluation.
+        # e. C7 full run (first instance; batch cap). The esmini execution feeds back
+        # into C9 (simulator as execution authority, DERIVED-2): a crashed/hung run or
+        # a hard esmini error escalates/stops before C8 evaluates garbage.
         run_record = run_c7(
             instances[0],
             trajectory_id,
@@ -391,6 +433,29 @@ def run_request(
             config=make_config(headless=headless),
         )
         _persist(run_record, "RunRecord")
+        sim_feedback = run_c9(run_record, trajectory_id, scenario_ir=ir)
+        _persist(sim_feedback, "FeedbackAction")
+        store.log_action(
+            run_id,
+            ActionLog(
+                actor_component="C9",
+                action_kind="sim_repair",
+                payload_hash=_h8(sim_feedback),
+            ),
+        )
+        if sim_feedback.escalate_to_user:
+            return _hitl(
+                HitlRequest(
+                    kind=HitlKind.ASSUMPTION_ACK,
+                    field_paths=[],
+                    question=f"esmini runtime problem: {sim_feedback.escalation_reason}",
+                )
+            )
+        if sim_feedback.stop and sim_feedback.revised_ir is None:
+            evaluation_summary = f"simulator fault: {sim_feedback.rationale}"
+            final_outcome = PipelineOutcome.FAILED
+            iterations += 1
+            break
         evaluation = run_c8(run_record, trajectory_id, scenario_ir=ir)
         _persist(evaluation, "EvaluationReport")
 
@@ -424,6 +489,37 @@ def run_request(
             final_outcome = PipelineOutcome.COMPLETED
             iterations += 1
             break
+
+        # Sweep execution (C9-Q2 explore): when the revised IR keeps an ego speed
+        # range, run the esmini --param_dist sweep over candidate values from that
+        # range and evaluate every permutation, reporting the best TTC. The winning
+        # value is bound as the revised IR's representative ego speed so the loop
+        # converges on the most critical configuration found.
+        sweep_records = _run_ego_speed_sweep(
+            instances[0], ir, trajectory_id, headless
+        )
+        if sweep_records:
+            for r in sweep_records:
+                _persist(r, "RunRecord")
+            sweep_evals = [
+                run_c8(r, trajectory_id, scenario_ir=ir) for r in sweep_records
+            ]
+            for e in sweep_evals:
+                _persist(e, "EvaluationReport")
+            ttcs = [
+                next((m.value for m in e.metrics if m.name.value == "ttc"), None)
+                for e in sweep_evals
+            ]
+            scored = [
+                (t, e, i) for i, (t, e) in enumerate(zip(ttcs, sweep_evals))
+                if t is not None
+            ]
+            if scored:
+                best_ttc, _, best_idx = min(scored, key=lambda pair: pair[0])
+                evaluation_summary = (
+                    f"swept {len(sweep_records)} permutations; best TTC "
+                    f"{best_ttc:.2f}s at permutation {best_idx}"
+                )
 
         ir = explore.revised_ir
         iterations += 1
