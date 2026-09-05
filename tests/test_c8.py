@@ -100,6 +100,23 @@ def test_collision_metric(tmp_path):
     assert any(m.name == "collision" and m.actor_pair == pair and m.value == 1.0 for m in metrics)
 
 
+def test_no_collision_when_actors_stay_apart(tmp_path):
+    """Actors never closer than 5 m must NOT produce a collision metric.
+
+    Regression: the collision check unpacked the (t, gap) series as (gap, t),
+    so the minimum *timestamp* (0.0) was compared against the threshold and
+    every run with state data reported a collision.
+    """
+    rows = []
+    for i in range(11):  # t = 0.0 .. 1.0
+        t = round(i * 0.1, 2)
+        rows.append({"t": t, "actor": "A", "x": 10 * t, "y": 0})
+        rows.append({"t": t, "actor": "B", "x": 5 + 10 * t, "y": 0})  # constant 5 m gap
+    rows.sort(key=lambda r: (r["actor"], r["t"]))
+    metrics = compute_metrics(__import__("pathlib").Path(_csv(tmp_path, rows)))
+    assert not any(m.name == "collision" for m in metrics)
+
+
 # --- 3. completion: sim_time vs max_time --------------------------------------
 
 

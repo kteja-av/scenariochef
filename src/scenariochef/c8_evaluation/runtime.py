@@ -158,7 +158,7 @@ def compute_metrics(csv_path: Path) -> list[Metric]:
                     actor_pair=pair,
                 )
             )
-            if min(gap for gap, _ in gap_series) < collision_threshold:
+            if min(g for _, g in gap_series) < collision_threshold:
                 metrics.append(
                     Metric(name=MetricName.COLLISION, value=1.0, unit=Unit.NONE, actor_pair=pair)
                 )
