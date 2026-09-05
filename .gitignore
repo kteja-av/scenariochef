@@ -78,3 +78,6 @@ log.txt
 
 # Local esmini installation and research scratch
 tools/
+
+# Dry-run scratch outputs (per-run summaries, states CSVs, C10 stores)
+tmp/dryruns/
