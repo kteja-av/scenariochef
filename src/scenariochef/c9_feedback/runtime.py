@@ -36,6 +36,10 @@ from scenariochef.contracts.validation_report import (
 CLAMP_LIMIT = 70.0
 MAX_ITERATIONS = 5
 
+# Determinism (deep-tests report, LOW finding): FeedbackAction hashes must be
+# reproducible, so created_at is pinned like C7/C8 do.
+_DETERMINISTIC_CREATED_AT = "2000-01-01T00:00:00+00:00"
+
 
 def _is_user_explicit(obj: Any) -> bool:
     """True when a slot/param object carries user_explicit provenance.
@@ -378,12 +382,14 @@ def _tid(report: ReportLike) -> str:
 
 
 def _h(model: BaseModel) -> str:
-    """Short stable hash token for the trace line."""
+    """Short stable hash token for the trace line.
+
+    Hash failures are programming errors and must surface: swallowing them used to
+    corrupt every C9 trace boundary with the meaningless "00000000" token
+    (deep-tests report, LOW finding).
+    """
     from scenariochef.contracts.common import semantic_hash
-    try:
-        return semantic_hash(model)[:8]
-    except Exception:
-        return "0" * 8
+    return semantic_hash(model)[:8]
 
 
 def _build(report: ReportLike, kind: str, *, iteration: int,
@@ -399,6 +405,7 @@ def _build(report: ReportLike, kind: str, *, iteration: int,
     meta = TraceMeta(
         request_id=getattr(getattr(report, "meta", None), "request_id", "REQ-0001"),
         trajectory_id=_tid(report),
+        created_at=_DETERMINISTIC_CREATED_AT,
         produced_by="c9",
     )
     action = FeedbackAction(

@@ -9,9 +9,10 @@ determinism. Everything runs offline (esmini is not installed).
 from __future__ import annotations
 
 import json
+import tempfile
 from pathlib import Path
 
-from scenariochef.c7_esmini.runtime import make_config, run_c7
+from scenariochef.c7_esmini.runtime import make_config, run_c7, run_c7_sweep
 from scenariochef.contracts.common import TraceMeta
 from scenariochef.contracts.generated_scenario import GeneratedScenario, XoscArtifact
 from scenariochef.contracts.run_record import RunStatus
@@ -65,6 +66,75 @@ def test_run_c7_without_binary_skipped_no_binary(monkeypatch, tmp_path):
     assert record.duration_s == 0.0
     assert "ESMINI_BIN" in record.stderr_tail
     # No exception, no subprocess attempted.
+
+
+# --- deep-tests report F8: run_c7_sweep machinery + temp-dir hygiene ------------
+
+
+def test_run_c7_sweep_happy_path(monkeypatch, tmp_path):
+    """A fake esmini reporting 3 permutations yields 3 full-mode records in order."""
+
+    script = (
+        "#!/bin/sh\n"
+        'case "$*" in\n'
+        "  *--return_nr_permutations*) echo \"Nr permutations: 3\"; exit 0;;\n"
+        "  *) echo \"sweep run\"; exit 0;;\n"
+        "esac\n"
+    )
+    fake = tmp_path / "fake-esmini"
+    fake.write_text(script)
+    fake.chmod(0o755)
+    monkeypatch.setenv("ESMINI_BIN", str(fake))
+
+    records = run_c7_sweep(_scenario(), "egoSpeed", [10.0, 20.0, 30.0], workdir=tmp_path)
+    assert len(records) == 3
+    assert all(r.mode == "full" for r in records)
+    assert all(r.status is RunStatus.COMPLETED for r in records)
+
+
+def test_run_c7_sweep_zero_permutations_cleans_dir(monkeypatch, tmp_path):
+    """Probe reporting 0 permutations -> clean [] result and no leftover scratch."""
+    fake = tmp_path / "fake-esmini-zero"
+    fake.write_text("#!/bin/sh\necho \"nothing here\"\nexit 0\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("ESMINI_BIN", str(fake))
+
+    scratch = Path(tempfile.gettempdir())
+    before = set(scratch.glob("c7_sweep_*"))
+    records = run_c7_sweep(_scenario(), "egoSpeed", [10.0], workdir=None)
+    assert records == []
+    after = set(scratch.glob("c7_sweep_*"))
+    assert before == after, "sweep scratch dir leaked"
+
+
+def test_run_c7_sweep_empty_values_returns_empty():
+    assert run_c7_sweep(_scenario(), "egoSpeed", []) == []
+
+
+def test_run_c7_sweep_without_binary_skipped(monkeypatch):
+    monkeypatch.delenv("ESMINI_BIN", raising=False)
+    monkeypatch.setattr(
+        "scenariochef.c7_esmini.runtime.shutil.which", lambda _name: None
+    )
+    records = run_c7_sweep(_scenario(), "egoSpeed", [10.0, 20.0])
+    # No binary: a single clean-skip marker (permutations cannot be probed).
+    assert len(records) == 1
+    assert records[0].status is RunStatus.SKIPPED_NO_BINARY
+    assert "ESMINI_BIN" in records[0].stderr_tail
+
+
+def test_run_c7_cleans_own_tempdir(monkeypatch, tmp_path):
+    """run_c7 with no explicit workdir removes its c7_* scratch dir (hygiene)."""
+    fake = tmp_path / "fake-esmini"
+    fake.write_text("#!/bin/sh\nexit 0\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("ESMINI_BIN", str(fake))
+
+    scratch = Path(tempfile.gettempdir())
+    before = set(scratch.glob("c7_*"))
+    run_c7(_scenario(), trajectory_id="REQ-0001", workdir=None)
+    after = set(scratch.glob("c7_*"))
+    assert before == after, "run_c7 leaked a temp dir"
 
 
 def test_run_record_json_round_trip(monkeypatch, tmp_path):

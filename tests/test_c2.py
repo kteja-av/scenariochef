@@ -147,6 +147,200 @@ def test_run_c2_records_last_proposals():
     assert "actors" in last_proposals["REQ-0042"]
 
 
+# --- deep-tests report F8: real-LLM proposer path (retry/repair/parse) ----------
+
+
+class _FakeCompletions:
+    """Scriptable chat.completions stand-in; records calls, replays replies."""
+
+    def __init__(self, replies: list[str | Exception]):
+        self.replies = list(replies)
+        self.calls: list[dict] = []
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        item = self.replies.pop(0)
+        if isinstance(item, Exception):
+            raise item
+
+        class _Msg:
+            content = item
+
+        class _Choice:
+            message = _Msg()
+
+        class _Resp:
+            choices = [_Choice()]
+
+        return _Resp()
+
+
+def _proposer_with(monkeypatch, replies: list[str | Exception]):
+    import scenariochef.c2_understanding.runtime as c2mod
+
+    fake = _FakeCompletions(replies)
+
+    class _FakeOpenAI:
+        def __init__(self, api_key=None, base_url=None):
+            self.chat = type("C", (), {})()
+            self.chat.completions = fake
+
+    monkeypatch.setattr("openai.OpenAI", _FakeOpenAI)
+    monkeypatch.setenv("C2_LLM_API_KEY", "test-key")
+    proposer = c2mod.CommandCodeProposer()
+    return proposer, fake
+
+
+def test_proposer_retries_transient_errors_then_succeeds(monkeypatch):
+    pytest.importorskip("openai")  # the real-LLM path needs the optional client pkg
+    import scenariochef.c2_understanding.runtime as c2mod
+
+    sleeps: list[float] = []
+    monkeypatch.setattr(c2mod.time, "sleep", sleeps.append)
+    proposer, fake = _proposer_with(
+        monkeypatch, [RuntimeError("503 bad gateway"), '{"actors": []}']
+    )
+    out = proposer("prompt")
+    assert out == {"actors": []}
+    assert len(fake.calls) == 2  # one retry after the transient failure
+    assert sleeps == [2.0]  # bounded backoff (2s, then 4s would follow a 2nd retry)
+
+
+def test_proposer_repairs_malformed_json(monkeypatch):
+    pytest.importorskip("openai")
+    import scenariochef.c2_understanding.runtime as c2mod
+
+    sleeps: list[float] = []
+    monkeypatch.setattr(c2mod.time, "sleep", sleeps.append)
+    proposer, fake = _proposer_with(
+        monkeypatch,
+        ["oops ```not json", '{"confidence": 0.9}'],
+    )
+    out = proposer("prompt")
+    assert out == {"confidence": 0.9}
+    # The repair re-ask embeds the offending output and the original prompt.
+    assert "not valid JSON" in fake.calls[1]["messages"][1]["content"]
+    assert "oops" in fake.calls[1]["messages"][1]["content"]
+
+
+def test_proposer_raises_runtime_error_after_bounded_attempts(monkeypatch):
+    pytest.importorskip("openai")
+    import scenariochef.c2_understanding.runtime as c2mod
+
+    sleeps: list[float] = []
+    monkeypatch.setattr(c2mod.time, "sleep", sleeps.append)
+    proposer, fake = _proposer_with(
+        monkeypatch, [RuntimeError("503")] * 5
+    )
+    with pytest.raises(RuntimeError, match="failed after 3 attempts"):
+        proposer("prompt")
+    assert len(fake.calls) == 3  # bounded: exactly _MAX_ATTEMPTS
+    assert sleeps == [2.0, 4.0]  # total sleep <= 6 s
+
+
+def test_proposer_requires_api_key(monkeypatch):
+    pytest.importorskip("openai")
+    import scenariochef.c2_understanding.runtime as c2mod
+
+    monkeypatch.delenv("C2_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("COMMAND_CODE_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="C2_LLM_API_KEY"):
+        c2mod.CommandCodeProposer()
+
+
+def test_extract_json_tolerates_fences_and_prose():
+    from scenariochef.c2_understanding.runtime import _extract_json
+
+    assert _extract_json('```json\n{"a": 1}\n```') == {"a": 1}
+    assert _extract_json('Sure!\n{"a": {"b": 2}} hope that helps') == {"a": {"b": 2}}
+    assert _extract_json('{"a": 1}') == {"a": 1}
+    with pytest.raises(ValueError):
+        _extract_json("no json here at all")
+    with pytest.raises(ValueError):
+        _extract_json("[1, 2, 3]")  # JSON but not an object
+
+
+# --- F1: cross-actor spawn sanity (deep-tests report) -------------------------
+
+
+def _proposal_with_lead(lead: dict) -> dict:
+    return {
+        "actors": [
+            {"name": "ego", "role": "ego", "initial_speed_mps": 15.0,
+             "position": {"frame": "lane_relative", "road_id": 1, "lane_id": -1, "s_m": 0.0}},
+            lead,
+        ],
+        "maneuvers": [{"actor": "ego", "action": "follow", "params": {"leader": "lead"}}],
+        "confidence": 0.9,
+        "unknowns": [],
+    }
+
+
+def test_gate_rejects_spawn_overlapping_target():
+    """A target spawned at ego's exact point is clamped and recorded (F1).
+
+    L1 witness: the LLM named the lead "Ego" with s_m=0.0; both entities spawned at
+    identical coordinates and the run still reported objectives 1/1.
+    """
+    spec = ingest_nl_params("ego follows lead", {})
+    proposal = _proposal_with_lead(
+        {"name": "Ego", "role": "target", "initial_speed_mps": 20.0,
+         "position": {"frame": "lane_relative", "road_id": 1, "lane_id": -1, "s_m": 0.0}}
+    )
+    out = gate(proposal, spec)
+    target = out.actors[1]
+    assert target.initial_position.s_m == 50.0  # clamped to the stable default gap
+    assert any("overlaps ego spawn" in u for u in out.unknowns)
+
+
+def test_gate_clamps_sub_collision_gap_on_same_lane():
+    """A 0.2 m lane-matched spawn gap is inside collision distance -> clamped."""
+    spec = ingest_nl_params("ego follows lead", {})
+    proposal = _proposal_with_lead(
+        {"name": "lead", "role": "target", "initial_speed_mps": 20.0,
+         "position": {"frame": "lane_relative", "road_id": 1, "lane_id": -1, "s_m": 0.2}}
+    )
+    out = gate(proposal, spec)
+    assert out.actors[1].initial_position.s_m == 50.0
+    assert any("overlaps ego spawn" in u for u in out.unknowns)
+
+
+def test_gate_allows_explicit_gap_on_different_lane():
+    """A sub-threshold s on a DIFFERENT lane is a valid crossing/merge setup: kept."""
+    spec = ingest_nl_params("pedestrian crosses", {})
+    proposal = _proposal_with_lead(
+        {"name": "walker", "role": "target", "kind": "pedestrian", "initial_speed_mps": 1.4,
+         "position": {"frame": "lane_relative", "road_id": 1, "lane_id": 1, "s_m": 0.2}}
+    )
+    out = gate(proposal, spec)
+    assert out.actors[1].initial_position.s_m == 0.2
+    assert not any("overlaps" in u for u in out.unknowns)
+
+
+def test_gate_renames_duplicate_ego_target():
+    """A target literally named 'ego' is renamed so entity refs stay unambiguous (F1)."""
+    spec = ingest_nl_params("ego follows lead", {})
+    proposal = _proposal_with_lead(
+        {"name": "ego", "role": "target", "initial_speed_mps": 20.0,
+         "position": {"frame": "lane_relative", "road_id": 1, "lane_id": -1, "s_m": 30.0}}
+    )
+    out = gate(proposal, spec)
+    assert out.actors[1].name == "lead"
+    assert any("duplicate actor name" in u for u in out.unknowns)
+
+
+def test_gate_keeps_explicit_healthy_gap():
+    """A proposal-carried healthy gap passes through unchanged (no false clamp)."""
+    spec = ingest_nl_params("ego follows lead", {})
+    proposal = _proposal_with_lead(
+        {"name": "lead", "role": "target", "initial_speed_mps": 20.0,
+         "position": {"frame": "lane_relative", "road_id": 1, "lane_id": -1, "s_m": 0.0 + 30.0}}
+    )
+    out = gate(proposal, spec)
+    assert out.actors[1].initial_position.s_m == 30.0
+    assert not any("overlaps" in u for u in out.unknowns)
+
+
 def test_module_imports_without_openai():
     import importlib
 

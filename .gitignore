@@ -81,3 +81,7 @@ tools/
 
 # Dry-run scratch outputs (per-run summaries, states CSVs, C10 stores)
 tmp/dryruns/
+tmp/deep_tests/
+
+# Stray per-run log captures in the repo root
+log_[0-9]*_of_*.txt

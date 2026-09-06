@@ -54,6 +54,10 @@ USER_EXPLICIT_KEYS = ("speed", "ego_speed", "lane", "target_lane", "gap", "headw
 DEFAULT_SPEED = 15.0
 DEFAULT_LANE = -1
 DEFAULT_LEAD_GAP_M = 50.0
+# Minimum lane-matched spawn separation (deep-tests report F1). Matches the C8 rulebook
+# collision threshold: below this the pair spawns inside a collision, which no valid
+# follow intent asks for.
+MIN_SPAWN_GAP_M = 0.5
 # The default map the offline proposer targets is `straight_2lane` (seed xodr), whose
 # single road is id 1. Hardcoding 0 here produced an .xosc referencing a non-existent
 # road — an E08-class binding bug that only surfaces at esmini runtime (CX-0004).
@@ -61,6 +65,10 @@ DEFAULT_ROAD_ID = 1
 
 # ``run_c2`` records {trajectory_id: proposal} here for C10 action logging.
 last_proposals: dict[str, dict[str, Any]] = {}
+
+# Determinism (deep-tests report, LOW finding): C2 pins created_at so the IntentSpec
+# artifact hash is reproducible for identical requests.
+_DETERMINISTIC_CREATED_AT = "2000-01-01T00:00:00+00:00"
 
 
 def build_prompt(request_spec: RequestSpec, evidence: EvidenceBundle | None) -> str:
@@ -291,11 +299,13 @@ def gate(
 
     # --- ego actor: user_explicit speed wins over proposal/llm ---
     speed_key = "ego_speed" if "ego_speed" in params else ("speed" if "speed" in params else None)
+    ego_speed: float | Range  # ActorIntent accepts both; a user value is always scalar
     if speed_key is not None:
-        ego_speed: float = float(params[speed_key])
+        ego_speed = float(params[speed_key])
         ego_speed_slot = SlotProvenance(source="user_explicit")
     else:
-        ego_speed = float(_proposal_ego(proposal).get("initial_speed_mps", DEFAULT_SPEED))
+        raw_speed = _proposal_ego(proposal).get("initial_speed_mps", DEFAULT_SPEED)
+        ego_speed = _coerce_scalar(raw_speed)  # number or {min,max,unit} interval
         ego_speed_slot = SlotProvenance(source="llm_proposed")
 
     # --- ego spawn lane: user_explicit lane wins ---
@@ -305,14 +315,41 @@ def gate(
         ego_lane = int(_proposal_ego(proposal).get("position", {}).get("lane_id", DEFAULT_LANE))
 
     # --- lead actor: llm_proposed (or a stable default) ---
-    lead_actor = None
-    for actor in proposal.get("actors", []):
-        name = actor.get("name") or "_"
-        if actor.get("role") != "ego" and name != "ego":
-            lead_actor = actor
-            break
+    # Selection is by ROLE first (the L1 witness: an LLM named the lead "Ego" while
+    # giving it role "target" — name-based filtering silently dropped it and both
+    # entities spawned at ego's coordinates). Name anomalies are handled below.
+    lead_actor = next(
+        (
+            actor
+            for actor in proposal.get("actors", [])
+            if isinstance(actor, dict) and actor.get("role") != "ego"
+        ),
+        None,
+    )
     lead_pos = ((lead_actor or {}).get("position") or {}) if lead_actor else {}
-    lead_speed = float((lead_actor or {}).get("initial_speed_mps", ego_speed))
+    lead_speed = _coerce_scalar((lead_actor or {}).get("initial_speed_mps", ego_speed))
+    lead_name = str(lead_actor.get("name", "lead")) if lead_actor else "lead"
+
+    # Cross-actor spawn sanity (deep-tests report F1): a target spawned at (or inside
+    # collision distance of) the ego spawn overlaps ego at t=0 — physically impossible
+    # for a follow scenario and it corrupted L1's objective outcome. The default 50 m
+    # only applies when the proposal carries no s_m at all; an explicit overlapping
+    # value is CLAMPED to a safe minimum gap and recorded in ``unknowns`` so CX sees it.
+    lead_s_raw = lead_pos.get("s_m")
+    lead_s = float(lead_s_raw) if lead_s_raw is not None else DEFAULT_LEAD_GAP_M
+    ego_s = 0.0  # the ego construction below pins s_m=0.0
+    same_lane = int(lead_pos.get("lane_id", ego_lane)) == ego_lane
+    if lead_s < MIN_SPAWN_GAP_M and same_lane:
+        unknowns.append(
+            f"target spawn s_m={lead_s:g} overlaps ego spawn s_m={ego_s:g} "
+            f"(min gap {MIN_SPAWN_GAP_M:g} m); clamped"
+        )
+        lead_s = DEFAULT_LEAD_GAP_M
+    if lead_name.strip().lower() == "ego":
+        # Duplicate ego name would make entity refs ambiguous downstream (F1 witness:
+        # the L1 proposer named the lead "Ego"); rename to the stable default.
+        unknowns.append("duplicate actor name 'ego' on the target actor; renamed to 'lead'")
+        lead_name = "lead"
 
     actors = [
         ActorIntent(
@@ -326,14 +363,14 @@ def gate(
             slot=ego_speed_slot,
         ),
         ActorIntent(
-            name=lead_actor.get("name", "lead") if lead_actor else "lead",
+            name=lead_name,
             kind="vehicle",
             role=ActorRole.TARGET,
             initial_position=Position(
                 frame=FrameTag.LANE_RELATIVE,
                 road_id=DEFAULT_ROAD_ID,
                 lane_id=int(lead_pos.get("lane_id", ego_lane)),
-                s_m=float(lead_pos.get("s_m", DEFAULT_LEAD_GAP_M)),
+                s_m=lead_s,
             ),
             initial_speed_mps=lead_speed,
             slot=SlotProvenance(source="llm_proposed"),
@@ -428,6 +465,7 @@ def gate(
         meta=TraceMeta(
             request_id=request_spec.meta.request_id,
             trajectory_id=request_spec.meta.trajectory_id,
+            created_at=_DETERMINISTIC_CREATED_AT,
             produced_by="C2",
         ),
         actors=actors,
@@ -487,8 +525,12 @@ class CommandCodeProposer:
 
     ``openai`` is imported lazily so C2 stays offline-safe without the package
     (ARCH-0001). Output parsing is strict: JSON after stripping optional code fences,
-    one repair retry on a malformed first response, then ``ValueError`` — the schema
-    gate in ``gate()`` remains the authority either way (C2-Q4).
+    up to ``_MAX_ATTEMPTS`` attempts with a repair re-ask on malformed output and a
+    bounded backoff on transient API errors, then ``RuntimeError`` — the schema
+    gate in ``gate()`` remains the authority either way (C2-Q4). CX converts the
+    terminal ``RuntimeError`` into an ``assumption_ack``-class HITL so a persistent
+    LLM outage degrades to a user question instead of crashing the pipeline
+    (deep-tests report F3).
     """
 
     _model: str

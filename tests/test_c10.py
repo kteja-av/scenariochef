@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 
 import pytest
 
 from scenariochef.c10_management.runtime import run_c10
-from scenariochef.c10_management.store import Store
+from scenariochef.c10_management.store import _CREATED_AT, Store
 from scenariochef.contracts.common import TraceMeta
 from scenariochef.contracts.intent_spec import IntentSpec
 from scenariochef.contracts.persistence_record import ActionLog, LineageMap
@@ -141,6 +142,99 @@ def test_store_init_idempotent(tmp_path: Path) -> None:
     s2 = Store(db_path=db, artifacts_dir=arts)
     s2.persist("REQ-1", _intent_spec(), "IntentSpec")
     assert s2.conn.execute("SELECT COUNT(*) FROM records").fetchone()[0] == 1
+
+
+def test_record_id_allocates_from_max_sequence_not_count(tmp_path: Path) -> None:
+    """record_id must come from MAX sequence, not COUNT(*) (deep-tests report §5).
+
+    With a pre-existing store where rows 1,2,5 exist (simulating deleted rows or a
+    concurrent writer), COUNT(*)=3 would allocate id 4 — colliding with the existing
+    4 or skipping; MAX-based allocation gives 6.
+    """
+    db = tmp_path / "sc.db"
+    arts = tmp_path / "artifacts"
+    store = Store(db_path=db, artifacts_dir=arts)
+    # Simulate an out-of-band history: ids 1 and 2 exist.
+    store.persist("RUN-A", _intent_spec(), "IntentSpec")
+    store.persist("RUN-A", _intent_spec(), "IntentSpec")
+    # A different run interleaved (does not affect RUN-A's sequence).
+    store.persist("RUN-B", _intent_spec(), "IntentSpec")
+    rec = store.persist("RUN-A", _intent_spec(), "IntentSpec")
+    assert rec.record_id == "SC-RUN-A-3"
+    # Simulate a concurrent-writer collision path: inject a row with a huge id, then
+    # verify the next allocation continues above it.
+    with store.conn:
+        store.conn.execute(
+            "INSERT INTO records (record_id, run_id, object_kind, object_hash, path, "
+            "created_at, lineage_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ("SC-RUN-C-9", "RUN-C", "IntentSpec", "h", str(arts / "x.json"),
+             "2000-01-01T00:00:00+00:00", "{}"),
+        )
+    rec_c = store.persist("RUN-C", _intent_spec(), "IntentSpec")
+    assert rec_c.record_id == "SC-RUN-C-10"
+    store.close()
+
+
+def test_store_context_manager_closes(tmp_path: Path) -> None:
+    """Store supports with-blocks and closes the connection (deep-tests report §5)."""
+    db = tmp_path / "sc.db"
+    with Store(db_path=db, artifacts_dir=tmp_path / "artifacts") as store:
+        store.persist("R", _intent_spec(), "IntentSpec")
+    with pytest.raises(sqlite3.ProgrammingError):
+        store.conn.execute("SELECT 1")
+
+
+def test_record_id_retry_on_collision(tmp_path: Path) -> None:
+    """A PRIMARY KEY collision recomputes the id instead of failing (multi-writer safe).
+
+    Simulates the race: another writer commits the id our MAX query just chose;
+    persist() retries and allocates the next free id.
+    """
+    db = tmp_path / "sc.db"
+    arts = tmp_path / "artifacts"
+    store = Store(db_path=db, artifacts_dir=arts)
+    store.persist("R", _intent_spec(), "IntentSpec")  # SC-R-1
+
+    class _RacingConn:
+        """Proxy that races: the first INSERT INTO records gets its id stolen."""
+
+        def __init__(self, conn: sqlite3.Connection) -> None:
+            self._conn = conn
+            self.armed = True
+
+        def execute(self, sql: str, *args: object):
+            row = self._conn.execute(sql, *args)
+            # sqlite3 passes parameters as a single tuple argument.
+            if "INSERT INTO records" in sql and self.armed and args:
+                self.armed = False
+                stolen_id = args[0][0]
+                self._conn.execute(
+                    "INSERT INTO records (record_id, run_id, object_kind, object_hash,"
+                    " path, created_at, lineage_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (stolen_id, "OTHER-RUN", "IntentSpec", "h", str(arts / "o.json"),
+                     _CREATED_AT, "{}"),
+                )
+            return row
+
+        def __enter__(self):
+            self._conn.__enter__()
+            return self
+
+        def __exit__(self, *exc):
+            return self._conn.__exit__(*exc)
+
+        def __getattr__(self, name: str):
+            return getattr(self._conn, name)
+
+    racing_conn = _RacingConn(store.conn)
+    store.conn = racing_conn  # type: ignore[assignment]
+    rec = store.persist("R", _intent_spec(), "IntentSpec")
+    store.conn = racing_conn._conn
+    # The stolen id (SC-R-2) went to the phantom row; the retry recomputed from MAX
+    # and allocated the next free id instead of failing or reusing a taken id.
+    assert rec.record_id == "SC-R-3"
+    assert rec.record_id != "SC-R-2"
+    store.close()
 
 
 def test_no_repo_pollution(tmp_path: Path) -> None:

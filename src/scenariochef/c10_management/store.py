@@ -26,6 +26,9 @@ from ..contracts.persistence_record import ActionLog, LineageMap, PersistenceRec
 
 # BLD-0001: fixed sentinel keeps artifacts/DB/reproducible builds deterministic.
 _CREATED_AT = "2000-01-01T00:00:00+00:00"
+
+# Bounded retries for record-id allocation under concurrent writers.
+_MAX_RECORD_ID_ATTEMPTS = 5
 _SENTINEL_META = TraceMeta(
     request_id="",
     trajectory_id="",
@@ -104,44 +107,57 @@ class Store:
         path = subdir / f"{kind}-{h8}.json"
         path.write_text(obj_json)
 
-        with self.conn:
-            n = self.conn.execute(
-                "SELECT COUNT(*) FROM records WHERE run_id = ?", (run_id,)
-            ).fetchone()[0]
-            n += 1
-            record_id = f"SC-{run_id}-{n}"
-
         lineage = lineage if lineage is not None else LineageMap()
         lineage_json = json.dumps(lineage.model_dump(), sort_keys=True)
 
         rec = PersistenceRecord(
             meta=_SENTINEL_META,
-            record_id=record_id,
+            record_id="",
             run_id=run_id,
             object_kind=kind,
             object_hash=obj_hash,
             path=str(path),
             lineage=lineage,
         )
-        with self.conn:
-            self.conn.execute(
-                """
-                INSERT INTO records
-                    (record_id, run_id, object_kind, object_hash, path, created_at,
-                     lineage_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    record_id,
-                    run_id,
-                    kind,
-                    obj_hash,
-                    str(path),
-                    _CREATED_AT,
-                    lineage_json,
-                ),
-            )
-        return rec
+        # record_id: sequence per run. COUNT(*) is not multi-writer safe (two writers
+        # can observe the same count); instead derive the next id from the current MAX
+        # sequence and retry the INSERT on a PRIMARY KEY collision, so concurrent
+        # writers serialize instead of failing.
+        for _attempt in range(_MAX_RECORD_ID_ATTEMPTS):
+            with self.conn:
+                row = self.conn.execute(
+                    "SELECT MAX(CAST(SUBSTR(record_id, ?) AS INTEGER)) FROM records "
+                    "WHERE run_id = ? AND record_id LIKE ?",
+                    (len(f"SC-{run_id}-") + 1, run_id, f"SC-{run_id}-%"),
+                ).fetchone()
+                n = int(row[0] or 0) + 1
+                record_id = f"SC-{run_id}-{n}"
+                try:
+                    self.conn.execute(
+                        """
+                        INSERT INTO records
+                            (record_id, run_id, object_kind, object_hash, path,
+                             created_at, lineage_json)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            record_id,
+                            run_id,
+                            kind,
+                            obj_hash,
+                            str(path),
+                            _CREATED_AT,
+                            lineage_json,
+                        ),
+                    )
+                except sqlite3.IntegrityError:
+                    continue  # concurrent writer took this id; recompute and retry
+                rec = rec.model_copy(update={"record_id": record_id})
+                return rec
+        raise RuntimeError(
+            f"could not allocate a record_id for run {run_id!r} "
+            f"after {_MAX_RECORD_ID_ATTEMPTS} attempts"
+        )
 
     def log_action(self, run_id: str, action: ActionLog) -> None:
         """Insert one C2/C9 action-log row."""

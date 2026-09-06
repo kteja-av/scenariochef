@@ -49,6 +49,15 @@ UNRESOLVED_REASON = "unknown parameter — needs HITL"
 
 _WELLKNOWN_UNITS = frozenset({"m", "mps", "mps2", "s", "none"})
 
+# Determinism (deep-tests report, LOW finding): C1/C2/C6/C9 pin created_at to the same
+# fixed sentinel the other components use, so identical requests produce identical
+# artifact hashes. Wall-clock metadata is not part of any contract payload.
+_DETERMINISTIC_CREATED_AT = "2000-01-01T00:00:00+00:00"
+
+# An empty NL payload carries no scenario intent; C2 cannot infer one and silently
+# fabricating defaults is wrong (deep-tests report F4) — C1 asks (C1-Q2).
+_EMPTY_TEXT_REASON = "empty request text — describe the scenario to simulate"
+
 
 def _normalize(text: str) -> str:
     """Strip and collapse internal whitespace (no semantic interpretation — C2's job)."""
@@ -111,6 +120,16 @@ def _analyze_params(
         if key == UNIT_KEY:
             if isinstance(value, str) and value.lower() in _WELLKNOWN_UNITS:
                 resolved[key] = value
+            else:
+                # Unknown units are asked about, never silently dropped
+                # (deep-tests report F5 — same ask-the-user contract as unknown keys).
+                unresolved.append(
+                    UnresolvedField(
+                        field_path=UNIT_KEY,
+                        reason=f"unknown unit {value!r} — expected one of "
+                        f"{sorted(_WELLKNOWN_UNITS)}",
+                    )
+                )
             continue
         candidates = _candidate_values(value)
         if len(candidates) > 1:
@@ -141,7 +160,12 @@ def _emit_and_build(
 ) -> RequestSpec:
     """Build the validated RequestSpec and emit the step-2 trace lines."""
     spec = RequestSpec(
-        meta=TraceMeta(request_id=trajectory_id, trajectory_id=trajectory_id, produced_by="C1"),
+        meta=TraceMeta(
+            request_id=trajectory_id,
+            trajectory_id=trajectory_id,
+            created_at=_DETERMINISTIC_CREATED_AT,
+            produced_by="C1",
+        ),
         modality=modality,
         raw=raw,
         params=params,
@@ -172,10 +196,31 @@ def run_c1(raw_input: Any, trajectory_id: str = "REQ-0001", **kwargs: Any) -> Re
 
 
 def ingest_file(path: Path, trajectory_id: str = "REQ-0001") -> RequestSpec:
-    """Modality XOSC_XODR — record the file reference; XML is only well-formedness checked."""
+    """Modality XOSC_XODR — record the file reference; XML is only well-formedness checked.
+
+    A nonexistent path is a HITL marker (unresolved ``input_files[0].path``), not a raw
+    ``FileNotFoundError``: API callers get the same ask-the-user gate the CLI's
+    exit-2 guard provides (deep-tests report F6).
+    """
     raw = str(path)
-    input_file = InputFile(path=raw, kind=_file_kind(path), sha256=_hash_file(path))
     unresolved: list[UnresolvedField] = []
+    if not path.is_file():
+        unresolved.append(
+            UnresolvedField(
+                field_path="input_files[0].path",
+                reason="file not found",
+            )
+        )
+        return _emit_and_build(
+            Modality.XOSC_XODR,
+            raw,
+            {},
+            [],
+            unresolved,
+            [],
+            trajectory_id,
+        )
+    input_file = InputFile(path=raw, kind=_file_kind(path), sha256=_hash_file(path))
     if not _well_formed(path):
         unresolved.append(
             UnresolvedField(field_path="input_files[0].xml", reason="not well-formed XML")
@@ -194,9 +239,18 @@ def ingest_file(path: Path, trajectory_id: str = "REQ-0001") -> RequestSpec:
 def ingest_nl_params(
     text: str, params: dict[str, Any], trajectory_id: str = "REQ-0001"
 ) -> RequestSpec:
-    """Modality NL_PARAMS — normalized text plus validated param vocabulary."""
+    """Modality NL_PARAMS — normalized text plus validated param vocabulary.
+
+    An empty NL payload (no text, no params) cannot express an intent: it is flagged
+    as an unresolved field so CX routes it to HITL instead of letting C2 fabricate a
+    full default scenario (deep-tests report F4).
+    """
     raw = _normalize(text)
     resolved, contradictions, unresolved = _analyze_params(params)
+    if not raw and not resolved and not unresolved and not contradictions:
+        unresolved.append(
+            UnresolvedField(field_path="text", reason=_EMPTY_TEXT_REASON)
+        )
     return _emit_and_build(
         Modality.NL_PARAMS,
         raw,

@@ -6,6 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from scenariochef.c10_management.store import Store
 from scenariochef.cx_orchestrator.runtime import run_demo, run_request
 
 _DEMO_REQUEST = "ego follows lead in lane -1 at 20 m/s"
@@ -40,7 +41,10 @@ def _parse_params(pairs: list[str]) -> dict[str, object]:
 def _run_text(text: str, params: dict[str, object], headless: bool = True) -> int:
     # A single dict + text request is dispatched by C1 to the NL_PARAMS adapter.
     request = {"text": text, **params} if params else text
-    result = run_request(request, acknowledgements=KNOWN_DEFAULTS, headless=headless)
+    with Store() as store:
+        result = run_request(
+            request, acknowledgements=KNOWN_DEFAULTS, headless=headless, store=store
+        )
     print(
         f"[run] outcome={result.outcome.value} iterations={result.iterations} "
         f"validation={result.validation_outcome or '-'} "
@@ -54,7 +58,8 @@ def _run_file(path: Path) -> int:
     if not path.exists():
         print(f"[run] file not found: {path}", file=sys.stderr)
         return 2
-    result = run_request(path)
+    with Store() as store:
+        result = run_request(path, store=store)
     print(
         f"[run] from {path} outcome={result.outcome.value} iterations={result.iterations}"
     )

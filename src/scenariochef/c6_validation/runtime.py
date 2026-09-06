@@ -39,6 +39,10 @@ if TYPE_CHECKING:
 
 _PRODUCER = "C6"
 
+# Determinism (deep-tests report, LOW finding): the ValidationReport hash must be
+# reproducible for identical inputs, so created_at is pinned like C7/C8 do.
+_DETERMINISTIC_CREATED_AT = "2000-01-01T00:00:00+00:00"
+
 # XSC-0001: the OSC 1.0 XSD is a real, authoritative schema; an XSD failure is a real
 # C6 error, not a warning. The schema is loaded once at module import and cached for the
 # process lifetime.
@@ -98,6 +102,7 @@ def validate_scenario(
     meta = TraceMeta(
         request_id=gs.meta.request_id,
         trajectory_id=gs.meta.trajectory_id,
+        created_at=_DETERMINISTIC_CREATED_AT,
         produced_by=_PRODUCER,
     )
     # S1→S6 run in order; the first FAIL short-circuits, so later stages never execute

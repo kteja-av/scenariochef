@@ -139,6 +139,54 @@ def test_request_spec_frozen():
         spec.raw = "changed"
 
 
+# --- deep-tests report fixes: F4 empty text, F5 unknown unit, F6 missing file ---
+
+
+def test_empty_text_and_params_flagged_unresolved():
+    """{'text': ''} must reach HITL, not fabricate a default scenario (F4)."""
+    spec = ingest_nl_params("", {})
+    assert spec.raw == ""
+    u = spec.unresolved_fields[0]
+    assert u.field_path == "text"
+    assert "empty" in u.reason
+
+
+def test_empty_dict_request_via_run_c1_flagged():
+    """run_c1({'text': ''}) — the CX A4 witness shape — carries the HITL marker."""
+    spec = run_c1({"text": ""})
+    assert any(u.field_path == "text" for u in spec.unresolved_fields)
+
+
+def test_unknown_unit_flagged_not_dropped():
+    """unit='furlongs' must surface as an unresolved field, not vanish (F5)."""
+    spec = ingest_nl_params("ego follows lead", {"gap": 30, "unit": "furlongs"})
+    units = [u for u in spec.unresolved_fields if u.field_path == "unit"]
+    assert units, "unknown unit was silently dropped"
+    assert "furlongs" in units[0].reason
+    # The known-unit path is unchanged.
+    ok = ingest_nl_params("ego follows lead", {"gap": 30, "unit": "mps"})
+    assert ok.params["unit"] == "mps"
+    assert not [u for u in ok.unresolved_fields if u.field_path == "unit"]
+
+
+def test_missing_file_is_unresolved_not_file_not_found(tmp_path: Path):
+    """ingest_file on a nonexistent path is a HITL marker, not a raw exception (F6)."""
+    spec = ingest_file(tmp_path / "no_such_file.xosc")
+    u = spec.unresolved_fields[0]
+    assert u.field_path == "input_files[0].path"
+    assert "not found" in u.reason
+    assert spec.input_files == []
+
+
+def test_c1_created_at_pinned_for_determinism():
+    """Same request twice -> byte-identical RequestSpec hashes (deep-tests G1)."""
+    from scenariochef.contracts.common import content_hash
+
+    a = ingest_nl_params("ego follows lead at 20 m/s", {"speed": 20})
+    b = ingest_nl_params("ego follows lead at 20 m/s", {"speed": 20})
+    assert content_hash(a) == content_hash(b)
+
+
 def test_trace_out_token_is_request_spec():
     sink = io.StringIO()
     trace.set_log(sink)

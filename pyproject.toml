@@ -44,7 +44,7 @@ include = ["src/scenariochef", "assets", "docs", "tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = [".harness", ".cursor", ".githooks"]
+extend-exclude = [".harness", ".cursor", ".githooks", "assets"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]

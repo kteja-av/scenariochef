@@ -407,10 +407,18 @@ def _evaluate_objectives(
 
     Thresholds are matched by ``objective_kind`` (C8-Q1); a stub with no matching
     rulebook entry (e.g. ``custom``) fails with ``threshold_source="none"``.
+
+    Soundness rule (deep-tests report F2): a collision metric makes every proximity
+    objective (ttc/pet) FAIL regardless of the threshold comparison — a crash drives
+    min TTC to 0.0, which would otherwise satisfy ``ttc <= 3.0`` and report an
+    unsound "objective passed" next to the same collision.
     """
     if scenario_ir is None:
         return []
     thresholds = rulebook.get("thresholds", [])
+    collision_pairs = {
+        m.actor_pair for m in metrics if m.name is MetricName.COLLISION and m.actor_pair
+    }
     results: list[ObjectiveResult] = []
     for stub in scenario_ir.objectives:
         rule = next((r for r in thresholds if r["objective_kind"] == stub.kind), None)
@@ -425,14 +433,33 @@ def _evaluate_objectives(
                 )
             )
             continue
-        observed = _observed_value(str(stub.kind), metrics)
+        observed = _observed_value(str(stub.kind), metrics, stub.params)
         if not has_state_data:
             passed, detail = False, _DETAIL_NO_STATE_DATA
         else:
+            auto_fail = _collision_auto_fail(
+                str(stub.kind), collision_pairs, metrics, stub.params
+            )
+            if auto_fail is not None:
+                results.append(
+                    ObjectiveResult(
+                        stub_id=stub.id,
+                        objective_kind=str(stub.kind),
+                        passed=False,
+                        threshold_source=rule["id"],
+                        detail=auto_fail,
+                    )
+                )
+                continue
             threshold = float(rule["value"])
             le = rule.get("comparator") == "<="
-            passed = observed <= threshold if le else observed == threshold
-            detail = f"observed={observed:g} threshold={threshold:g} ({rule['id']})"
+            if math.isinf(observed) and math.isinf(threshold):
+                # inf <= inf would compare True; "never approached" must not pass a
+                # proximity objective (deep-tests report F2, non-finite leg).
+                passed = False
+            else:
+                passed = observed <= threshold if le else observed == threshold
+            detail = f"observed={_fmt_observed(observed)} threshold={threshold:g} ({rule['id']})"
         results.append(
             ObjectiveResult(
                 stub_id=stub.id,
@@ -445,10 +472,31 @@ def _evaluate_objectives(
     return results
 
 
-def _observed_value(kind: str, metrics: list[Metric]) -> float:
-    """Aggregate observed value for a metric kind (min for ttc/pet, else 0/1 sentinels)."""
+def _observed_value(
+    kind: str, metrics: list[Metric], stub_params: dict[str, Any] | None = None
+) -> float:
+    """Aggregate observed value for a metric kind (min for ttc/pet, else 0/1 sentinels).
+
+    A ttc/pet stub that names its pair actor (``stub_params["target"]`` — the LLM's
+    ``min_ttc_s`` request also rides along in params) scopes the aggregation to metrics
+    for pairs involving that actor; otherwise all pairs are aggregated. The threshold
+    itself still comes from the rulebook only (C8-Q1) — params select WHAT is measured,
+    never the pass/fail bound.
+    """
     if kind in (MetricName.TTC, MetricName.PET):
         values = [m.value for m in metrics if str(m.name) == kind]
+        if stub_params:
+            target = str(stub_params.get("target", "")).strip().lower()
+            if target:
+                scoped = [
+                    m.value
+                    for m in metrics
+                    if str(m.name) == kind
+                    and m.actor_pair is not None
+                    and any(target == p.strip().lower() for p in m.actor_pair)
+                ]
+                if scoped:
+                    values = scoped
         return float(min(values)) if values else math.inf
     if kind == MetricName.COLLISION:
         return 1.0 if any(m.name is MetricName.COLLISION for m in metrics) else 0.0
@@ -456,6 +504,37 @@ def _observed_value(kind: str, metrics: list[Metric]) -> float:
         comp = [m for m in metrics if m.name is MetricName.COMPLETION]
         return comp[0].value if comp else 0.0
     return math.inf
+
+
+def _collision_auto_fail(
+    kind: str,
+    collision_pairs: set[tuple[str, str]],
+    metrics: list[Metric],
+    stub_params: dict[str, Any] | None = None,
+) -> str | None:
+    """Auto-fail detail for a proximity objective invalidated by a collision, else None.
+
+    A ttc/pet objective whose observed pair collided cannot pass: TTC=0 at contact
+    satisfies any ``<=`` threshold (deep-tests report F2). The check applies to the
+    stub's scope — a collided pair only fails objectives that measure that pair
+    (all pairs, or pairs involving ``stub_params["target"]``).
+    """
+    if kind not in (MetricName.TTC, MetricName.PET) or not collision_pairs:
+        return None
+    pairs = [p for m in metrics if str(m.name) == kind for p in [m.actor_pair] if p]
+    target = str((stub_params or {}).get("target", "")).strip().lower()
+    if target:
+        pairs = [p for p in pairs if any(target == a.strip().lower() for a in p)]
+    scoped = [p for p in pairs if p in collision_pairs]
+    if not scoped:
+        return None
+    names = ", ".join(f"{a}<->{b}" for a, b in sorted(set(scoped)))
+    return f"auto-fail: collision observed for pair(s) {names} invalidates {kind}"
+
+
+def _fmt_observed(observed: float) -> str:
+    """Human formatting for the objective detail line (handles the inf sentinel)."""
+    return "inf" if math.isinf(observed) else f"{observed:g}"
 
 
 def _h8(model: BaseModel) -> str:

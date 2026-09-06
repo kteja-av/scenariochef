@@ -147,18 +147,18 @@ def _ack_c2_defaults(
 
     if evidence is None:
         return evidence
-    try:
-        return evidence.model_copy(
-            update={
-                "definitions": [_ack(i) for i in evidence.definitions],
-                "constraints": [_ack(i) for i in evidence.constraints],
-                "examples": [_ack(i) for i in evidence.examples],
-                "compatibility": [_ack(i) for i in evidence.compatibility],
-                "provenance": [_ack(i) for i in evidence.provenance],
-            }
-        )
-    except Exception:  # pragma: no cover - defensive
-        return evidence
+    # No silent degradation (deep-tests report F9): the EvidenceBundle fields are
+    # schema-fixed, so a failure here is a programming error and must surface —
+    # swallowing it previously produced spurious assumption_ack HITLs.
+    return evidence.model_copy(
+        update={
+            "definitions": [_ack(i) for i in evidence.definitions],
+            "constraints": [_ack(i) for i in evidence.constraints],
+            "examples": [_ack(i) for i in evidence.examples],
+            "compatibility": [_ack(i) for i in evidence.compatibility],
+            "provenance": [_ack(i) for i in evidence.provenance],
+        }
+    )
 
 
 def _trace_boundary(
@@ -206,11 +206,14 @@ def run_pipeline(trajectory_count: int = 20) -> None:
 
     with open(LOG_PATH, "w", encoding="utf-8") as log_file:
         trace.set_log(log_file)
-        for n in range(1, trajectory_count + 1):
-            _run_one_trajectory(f"REQ-{n:04d}")
-        # restore the default stdout sink so later trace.emit calls (e.g. in the test
-        # suite or CLI) don't write to the now-closed demo log file.
-        trace.set_log(_sys.stdout)
+        try:
+            for n in range(1, trajectory_count + 1):
+                _run_one_trajectory(f"REQ-{n:04d}")
+        finally:
+            # restore the default stdout sink on success AND failure: the demo log
+            # file closes with the with-block, and a stale sink would make every
+            # later trace.emit raise "I/O operation on closed file" (deep-tests F7).
+            trace.set_log(_sys.stdout)
     print(
         f"Wrote {trajectory_count} trajectories (REQ-0001..REQ-{trajectory_count:04d}) "
         f"to {LOG_PATH}"
@@ -324,6 +327,22 @@ def run_request(
                 )
             )
         raise
+    except RuntimeError as exc:
+        # Persistent LLM proposer failure (CommandCodeProposer exhausts its bounded
+        # retries) must degrade to a HITL, not crash the pipeline (deep-tests F3).
+        # The offline null_proposer stays the documented fallback for callers that
+        # opt in via the explicit-proposer argument; CX itself never silently swaps
+        # proposers because that would change intent provenance without a gate.
+        return _hitl(
+            HitlRequest(
+                kind=HitlKind.ASSUMPTION_ACK,
+                field_paths=[],
+                question=(
+                    "C2 LLM proposer failed after retries and needs operator action: "
+                    f"{exc}"
+                ),
+            )
+        )
     _persist(intent, "IntentSpec")
     if intent.confidence < 0.7 or intent.unknowns:
         return _hitl(

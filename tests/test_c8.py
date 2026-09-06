@@ -9,6 +9,7 @@ rulebook-version reporting. All offline, no LLM.
 from __future__ import annotations
 
 import csv
+from pathlib import Path
 
 from scenariochef.c8_evaluation.runtime import compute_metrics, evaluate
 from scenariochef.contracts.common import TraceMeta
@@ -208,6 +209,166 @@ def test_deterministic_evaluate(tmp_path):
         return [(m.name, m.actor_pair, m.value) for m in rep.metrics]
 
     assert seq(first) == seq(second)
+
+
+# --- F2: a collision invalidates proximity objectives (deep-tests report) ------
+
+
+def test_collision_auto_fails_ttc_objective(tmp_path):
+    """RB-TTC-01 is 'ttc <= 3.0'; a crash yields TTC=0.0 which must NOT pass (F2).
+
+    L1 witness: completed run, 1/1 objectives passed, and a 0.000 m gap in the same
+    report. Collision on the measured pair now auto-fails the objective.
+    """
+    rows = []
+    for i in range(6):  # approach then contact: gap 3.0 -> 0.0
+        t = round(i * 0.1, 2)
+        rows.append({"t": t, "actor": "A", "x": 3.0 - 6.0 * t, "y": 0})
+        rows.append({"t": t, "actor": "B", "x": 0.0, "y": 0})
+    rows.sort(key=lambda r: (r["actor"], r["t"]))
+    report = evaluate(
+        _run(csv_path=_csv(tmp_path, rows), sim_time=1.0),
+        _ir([_objective("o-ttc", "ttc")]),
+    )
+    assert any(m.name == "collision" for m in report.metrics)
+    r = report.objective_results[0]
+    assert r.passed is False
+    assert "collision" in r.detail
+
+
+def test_collision_auto_fails_pet_objective(tmp_path):
+    rows = []
+    for i in range(6):
+        t = round(i * 0.1, 2)
+        rows.append({"t": t, "actor": "A", "x": 3.0 - 6.0 * t, "y": 0})
+        rows.append({"t": t, "actor": "B", "x": 0.0, "y": 0})
+    rows.sort(key=lambda r: (r["actor"], r["t"]))
+    report = evaluate(
+        _run(csv_path=_csv(tmp_path, rows), sim_time=1.0),
+        _ir([_objective("o-pet", "pet")]),
+    )
+    assert report.objective_results[0].passed is False
+    assert "collision" in report.objective_results[0].detail
+
+
+def test_collision_does_not_auto_fail_other_pair_objective(tmp_path):
+    """A collision on pair (A,B) leaves a ttc objective scoped to a clean pair alone.
+
+    Stub params ['target']='C' scopes the aggregation to pairs involving C (the
+    min_ttc_s/target param the LLM emits selects WHAT is measured, never the bound).
+    """
+    rows = []
+    # A collides with B.
+    for i in range(6):
+        t = round(i * 0.1, 2)
+        rows.append({"t": t, "actor": "A", "x": 3.0 - 6.0 * t, "y": 0})
+        rows.append({"t": t, "actor": "B", "x": 0.0, "y": 0})
+        # C approaches D fast enough for TTC=2.0 (<= 3.0) without contact.
+        rows.append({"t": t, "actor": "C", "x": 0.0, "y": 0})
+        rows.append({"t": t, "actor": "D", "x": 10.0 - 5.0 * t, "y": 0})
+    rows.sort(key=lambda r: (r["actor"], r["t"]))
+    ir = _ir([ObjectiveStub(id="o-c", kind="ttc", description="d", params={"target": "D"})])
+    report = evaluate(_run(csv_path=_csv(tmp_path, rows), sim_time=1.0), ir)
+    # The C<->D pair has a healthy TTC (2.0 s) and never collides: the objective must
+    # PASS even though the unrelated A<->B pair collided.
+    r = report.objective_results[0]
+    assert r.passed is True, r.detail
+    assert "collision" not in r.detail
+
+
+def test_ttc_stub_param_scopes_pair_but_not_threshold(tmp_path):
+    """params['target']='B' restricts aggregation to B-pairs; threshold stays 3.0."""
+    rows = []
+    # (A,B): fast approach -> small TTC. (A,C): slow approach -> large TTC.
+    for i in range(11):
+        t = round(i * 0.1, 2)
+        rows.append({"t": t, "actor": "A", "x": 10.0 - t, "y": 0})
+        rows.append({"t": t, "actor": "B", "x": 8.0, "y": 0})   # closing 1 m/s, gap 2
+        rows.append({"t": t, "actor": "C", "x": 30.0 - 0.1 * t, "y": 20.0})  # far
+    rows.sort(key=lambda r: (r["actor"], r["t"]))
+    ir = _ir([ObjectiveStub(id="o-b", kind="ttc", description="d", params={"target": "B"})])
+    report = evaluate(_run(csv_path=_csv(tmp_path, rows), sim_time=1.0), ir)
+    r = report.objective_results[0]
+    # B pair: gap 2.0 closing at 1 m/s -> TTC 1.0 <= 3.0 -> passes with the value
+    # scoped to the B pair (the far C pair contributes nothing).
+    assert r.passed is True
+    assert "observed=1" in r.detail
+
+
+# --- F8: the esmini --csv_logger wide format (what C7 actually emits) ----------
+
+
+def _write_wide_csv(tmp_path, frames: list[tuple[float, dict[str, tuple[float, float]]]]):
+    """frames: (t, {entity: (x, y)}) in the real esmini 3.7.2 layout."""
+    entities = ["ego", "lead"]
+    header_cells = ["Index [-]", "TimeStamp [s]"]
+    for i, name in enumerate(entities, start=1):
+        header_cells += [
+            f"#{i} Entity_Name [-]",
+            f"#{i} Entity_ID [-]",
+            f"#{i} World_Position_X [m]",
+            f"#{i} World_Position_Y [m]",
+        ]
+    lines = [
+        "esmini GIT REV: v3.7.2-0-4b8fbafb",
+        "Scenario File Name: /tmp/x/L1-v0.xosc",
+        "Number of Vehicles: 2",
+        ", ".join(header_cells) + ",",
+    ]
+    # units row (skipped by the parser)
+    lines.append(", ".join(["-"] * len(header_cells)) + ",")
+    for t, positions in frames:
+        cells = [str(0), f"{t:.6f}"]
+        for name in entities:
+            x, y = positions[name]
+            cells += [name, "0", f"{x:.6f}", f"{y:.6f}"]
+        lines.append(", ".join(cells) + ", ")
+    path = tmp_path / "wide_states.csv"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return str(path)
+
+
+def test_wide_esmini_csv_collision_detected(tmp_path):
+    """Wide-format CSV with a closing pair must yield ttc/pet/collision (F8).
+
+    Regression guard for the L1 unsoundness: this is the production C7->C8 data
+    format, and a 'collision implies objective fails' test on it catches the case.
+    """
+    frames = []
+    for i in range(6):
+        t = round(i * 0.1, 2)
+        gap = 3.0 - 0.6 * i  # 3.0, 2.4, ..., 0.0
+        frames.append((t, {"ego": (gap, 0.0), "lead": (0.0, 0.0)}))
+    csv_path = _write_wide_csv(tmp_path, frames)
+    report = evaluate(
+        _run(csv_path=csv_path, sim_time=1.0),
+        _ir([_objective("o-ttc", "ttc")]),
+    )
+    names = {m.name for m in report.metrics}
+    assert {"ttc", "pet", "collision"} <= names
+    assert report.objective_results[0].passed is False
+    assert "collision" in report.objective_results[0].detail
+
+
+def test_wide_esmini_csv_no_collision_when_apart(tmp_path):
+    frames = [(round(i * 0.1, 2), {"ego": (10.0 * i, 0.0), "lead": (50.0 + 10.0 * i, 0.0)})
+              for i in range(5)]
+    csv_path = _write_wide_csv(tmp_path, frames)
+    metrics = compute_metrics(Path(csv_path))
+    assert not any(m.name == "collision" for m in metrics)
+
+
+def test_dispatch_rejects_garbage_file(tmp_path):
+    """A CSV with neither the simple header nor an esmini 'Index' header yields no states."""
+    p = tmp_path / "garbage.csv"
+    p.write_text("hello,world\n1,2\n", encoding="utf-8")
+    assert compute_metrics(p) == []
+
+
+def test_empty_csv_yields_no_metrics(tmp_path):
+    p = tmp_path / "empty.csv"
+    p.write_text("", encoding="utf-8")
+    assert compute_metrics(p) == []
 
 
 # --- 8. rulebook version reported from the YAML -------------------------------

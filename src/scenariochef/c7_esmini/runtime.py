@@ -183,6 +183,7 @@ def run_c7(
     status, hang = _classify(
         returncode, stdout_all, stderr_all, timed_out, run_config, wall_clock_timeout
     )
+    _cleanup_workdir(dir_, workdir)
 
     # --csv_logger writes <stem>_states.csv; in permutation mode esmini appends
     # "_K_of_N" to the filename. Keep the legacy <stem>.csv check for esmini builds
@@ -212,6 +213,22 @@ def run_c7(
     )
     trace.emit(8, "C7", "OUT", f"<RunRecord:{_h8(record)}>", trajectory_id)
     return record
+
+
+def _cleanup_workdir(dir_: Path, explicit_workdir: Path | None) -> None:
+    """Remove the run's scratch directory when C7 created it (hygiene: no temp leak).
+
+    Explicit ``workdir`` callers (tests, sweeps that need per-permutation files)
+    keep ownership; when no CSV was produced a C7-owned temp dir has nothing left
+    worth keeping, so it is removed.
+    """
+    if explicit_workdir is not None:
+        return
+    try:
+        if not any(dir_.glob("*.csv")):
+            shutil.rmtree(dir_, ignore_errors=True)
+    except OSError:
+        pass  # never fail the run record over cleanup
 
 
 def _find_binary() -> str | None:
@@ -379,29 +396,47 @@ def run_c7_sweep(
         encoding="utf-8",
     )
 
-    # Discover the permutation count (esmini prints "Nr permutations: N").
-    probe = subprocess.run(
-        [binary, "--headless", "--osc", str(dist_path), "--return_nr_permutations"],
-        capture_output=True, text=True, timeout=30,
-    )
+    # Discover the permutation count (esmini prints "Nr permutations: N"). A probe
+    # failure is reported as zero permutations (clean skip), not a raised exception —
+    # the sweep dir is removed on those paths so scratch space never leaks.
+    try:
+        probe = subprocess.run(
+            [binary, "--headless", "--osc", str(dist_path), "--return_nr_permutations"],
+            capture_output=True, text=True, timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        shutil.rmtree(dir_, ignore_errors=True)
+        return []
     probe_out = probe.stdout or ""
     if _NR_PERMUTATIONS_MARKER not in probe_out:
+        shutil.rmtree(dir_, ignore_errors=True)
         return []
-    count = int(probe_out.split(_NR_PERMUTATIONS_MARKER, 1)[1].split()[0])
+    try:
+        count = int(probe_out.split(_NR_PERMUTATIONS_MARKER, 1)[1].split()[0])
+    except (IndexError, ValueError):
+        shutil.rmtree(dir_, ignore_errors=True)
+        return []
     if count <= 0:
+        shutil.rmtree(dir_, ignore_errors=True)
         return []
 
     records: list[RunRecord] = []
-    for index in range(count):
-        records.append(
-            run_c7(
-                generated_scenario,
-                trajectory_id=trajectory_id,
-                config=run_config,
-                mode="full",
-                workdir=dir_,
-                param_dist_path=dist_path,
-                param_permutation=index,
+    try:
+        for index in range(count):
+            records.append(
+                run_c7(
+                    generated_scenario,
+                    trajectory_id=trajectory_id,
+                    config=run_config,
+                    mode="full",
+                    workdir=dir_,
+                    param_dist_path=dist_path,
+                    param_permutation=index,
+                )
             )
-        )
+    finally:
+        # C7-owned sweep dirs are scratch: once the records (incl. CSV paths) are
+        # captured, remove the directory unless the caller passed an explicit workdir.
+        if workdir is None:
+            shutil.rmtree(dir_, ignore_errors=True)
     return records
