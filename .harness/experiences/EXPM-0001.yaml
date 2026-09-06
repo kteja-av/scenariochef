@@ -1,0 +1,24 @@
+id: EXPM-0001
+scope: src/scenariochef/c9_feedback
+trigger: when C9 plan_explore proposes parameter variations for a scenario with multiple
+  Range-valued constraints
+mistake: exploration sweeps only the first Range constraint found in the IR regardless
+  of iteration; parameter space coverage is structurally capped at one dimension
+root_cause: _next_range_constraint ignores the iteration argument, so every sweep
+  iteration mutates the same constraint; the search-based scenario-generation literature
+  (scenoRITA, LEADE, AS-Fuzzer, AdvSce) treats multi-parameter coverage as a baseline
+  robustness property
+correct_rule: cycle Range-valued constraints round-robin across iterations (index
+  = iteration modulo count of eligible constraints); single-constraint IRs keep the
+  exact pinned candidate schedule (min, mid, max, min*1.1) for backward compatibility
+required_check: tests/test_c9.py::test_range_sweep_rotates_constraints
+severity: HIGH
+failure_class: research-gap-diversity
+confidence: '0.9'
+source: research/reports/research-csv-mapping.md (Elicit CSV rows 6, 8, 10, 13); harness-first
+  policy 2026
+created_at: '2026-09-06'
+last_observed: '2026-09-06'
+status: ACTIVE
+times_prevented: 0
+failure_count: 0

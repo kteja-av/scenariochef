@@ -10,6 +10,7 @@ thresholds; both come from the IR and this file. Version bumped on any threshold
 | ttc | TTC(t) = euclidean gap / closing speed, computed when closing speed > 0; reported value = minimum over the run | s |
 | pet | PET = |t_A - t_B| at the conflict point (closest approach position); computed for every pair where TTC is reported | s |
 | collision | any frame where euclidean gap < collision_threshold | bool (1/0) |
+| min_dist | minimum euclidean gap between the pair over the run; reported-only (no threshold → never graded, never auto-fails) | m |
 | completion | storyboard completion: simulation time reached >= completion_time_fraction * planned duration | bool (1/0) |
 
 Pairing rule (C8-Q4): every TTC metric row for a pair is accompanied by a PET row for the

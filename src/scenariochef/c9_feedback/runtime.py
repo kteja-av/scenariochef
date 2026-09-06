@@ -68,6 +68,7 @@ def run_c9(
     scenario_ir: ScenarioIR | None = None,
     iteration: int = 0,
     last_metrics: list[Metric] | None = None,
+    prev_metrics: list[Metric] | None = None,
 ) -> FeedbackAction:
     """Dispatch to repair/explore/simulator-repair by report type (C9-Q1 split)."""
     if isinstance(report, ValidationReport):
@@ -77,7 +78,7 @@ def run_c9(
     if isinstance(report, EvaluationReport):
         if scenario_ir is None:
             raise ValueError("run_c9: scenario_ir required for explore")
-        return plan_explore(report, scenario_ir, iteration, last_metrics)
+        return plan_explore(report, scenario_ir, iteration, last_metrics, prev_metrics)
     # Simulator feedback (C7 RunRecord): the esmini execution feeds the loop too.
     if isinstance(report, RunRecord):
         if scenario_ir is None:
@@ -281,8 +282,15 @@ def plan_explore(
     scenario_ir: ScenarioIR,
     iteration: int = 0,
     last_metrics: list[Metric] | None = None,
+    prev_metrics: list[Metric] | None = None,
 ) -> FeedbackAction:
-    """Propose a parameter sweep over the first Range-valued IRConstraint (C6 PASS)."""
+    """Propose a parameter sweep over a Range-valued IRConstraint (C6 PASS).
+
+    Constraint selection round-robins across ALL eligible Range constraints
+    (EXPM-0001, research wave R1): each iteration mutates the next constraint so the
+    loop covers the parameter space; a single-constraint IR keeps the pinned
+    per-constraint candidate schedule.
+    """
     trace.emit(10, "C9", "IN", f"<EvaluationReport:{_h(evaluation_report)}>",
                _tid(evaluation_report))
 
@@ -314,7 +322,7 @@ def plan_explore(
             ir_path=f"constraints/{constraint.name}",
         )
     ]
-    if _no_metric_gain(last_metrics):
+    if _no_metric_gain(last_metrics, prev_metrics):
         return _build(evaluation_report, "explore", iteration=iteration,
                       revised_ir=None, stop=True, stop_reason="no_metric_gain",
                       rationale=constraint.name)
@@ -336,25 +344,45 @@ def plan_explore(
 # --- helpers ---------------------------------------------------------------
 
 
-def _no_metric_gain(last_metrics: list[Metric] | None) -> bool:
-    """True when the reported best min ttc/pet shows no improvement (<=0.1 delta).
+def _no_metric_gain(
+    last_metrics: list[Metric] | None, prev_metrics: list[Metric] | None = None
+) -> bool:
+    """True when exploration can no longer improve the best min ttc/pet.
 
-    ``plan_explore`` is handed the previous iteration's best metrics; if that best is
-    within 0.1 of 0 (i.e. already at the floor) further exploration yields nothing.
+    Two stop conditions (C9-Q4 budget discipline; EXPM-0002, research wave R1):
+    the absolute floor — best metric already <= 0.1 s (collision imminent) — or a
+    criticality plateau — relative improvement over the previous iteration's best
+    below 1 percent. Plateau stopping mirrors the adaptive search literature
+    (LEADE/AdvSce): stop when sweeps stop paying for themselves.
     """
     if not last_metrics:
         return False
     relevant = [m for m in last_metrics if m.name.value in ("ttc", "pet")]
     if not relevant:
         return False
-    return all(m.value <= 0.1 for m in relevant)
+    best = min(m.value for m in relevant)
+    if best <= 0.1:
+        return True
+    if prev_metrics:
+        prev_relevant = [m for m in prev_metrics if m.name.value in ("ttc", "pet")]
+        if prev_relevant:
+            prev_best = min(m.value for m in prev_relevant)
+            if prev_best > 0 and (prev_best - best) / prev_best < 0.01:
+                return True
+    return False
 
 
 def _next_range_constraint(scenario_ir: ScenarioIR, iteration: int) -> IRConstraint | None:
-    for c in scenario_ir.constraints:
-        if isinstance(c.value, Range):
-            return c
-    return None
+    """Round-robin the sweep across Range-valued constraints (EXPM-0001).
+
+    ``iteration`` selects which eligible constraint is swept this pass, cycling
+    through the full list; user-explicit ranges are still rejected by the caller
+    (C9-Q6) and never rewritten.
+    """
+    eligible = [c for c in scenario_ir.constraints if isinstance(c.value, Range)]
+    if not eligible:
+        return None
+    return eligible[iteration % len(eligible)]
 
 
 def _candidate(min_v: float, max_v: float, iteration: int) -> float:

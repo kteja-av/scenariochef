@@ -34,6 +34,7 @@ from scenariochef.c9_feedback.runtime import run_c9
 from scenariochef.c10_management.runtime import run_c10
 from scenariochef.c10_management.store import Store
 from scenariochef.contracts.common import semantic_hash
+from scenariochef.contracts.evaluation_report import Metric
 from scenariochef.contracts.evidence_bundle import EvidenceQuery
 from scenariochef.contracts.orchestration import (
     HitlKind,
@@ -378,6 +379,7 @@ def run_request(
     _persist(ir, "ScenarioIR")
 
     iterations = 0
+    prev_metrics: list[Metric] | None = None
     final_outcome = PipelineOutcome.FAILED
     validation_outcome: str | None = None
     evaluation_summary: str | None = None
@@ -485,6 +487,7 @@ def run_request(
             scenario_ir=ir,
             iteration=iterations,
             last_metrics=evaluation.metrics,
+            prev_metrics=prev_metrics,
         )
         _persist(explore, "FeedbackAction")
         store.log_action(
@@ -542,6 +545,7 @@ def run_request(
 
         ir = explore.revised_ir
         iterations += 1
+        prev_metrics = evaluation.metrics
 
     return PipelineResult(
         run_id=run_id,

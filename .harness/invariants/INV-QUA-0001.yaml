@@ -1,0 +1,12 @@
+id: INV-QUA-0001
+rule: C8 reports a minimum inter-actor distance metric (min_dist) alongside TTC/PET for every actor pair when state data exists; it is reported-only and never auto-fails an objective unless a rulebook threshold says so
+trigger:
+- removing or renaming the min_dist metric
+- making min_dist auto-fail objectives without a rulebook threshold entry
+- computing min_dist from anything other than the same aligned frames used for TTC/PET
+scope: src/scenariochef/c8_evaluation
+severity: HIGH
+required_check: tests/test_c8.py::test_min_distance_metric_reported
+origin: research/reports/research-csv-mapping.md (Elicit CSV rows 29-33 corner-case literature); harness-first policy 2026
+created_at: 2026-09-05
+last_verified: 2026-09-05

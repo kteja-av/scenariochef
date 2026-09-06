@@ -44,6 +44,7 @@ _BUCKET_S = 0.05
 _COLLISION_THRESHOLD_M = 0.5
 _CONFLICT_RADIUS_M = 0.5
 _COMPLETION_FRACTION = 0.95
+_MIN_DIST_WARNING_M = 2.0
 
 # Failed/detail sentinels (deterministic strings).
 _DETAIL_NO_STATE_DATA = "no state data"
@@ -129,8 +130,10 @@ def compute_metrics(csv_path: Path) -> list[Metric]:
 
     Returns:
         ``ttc`` + ``pet`` metrics for each pair with a meaningful approach, and
-        ``collision`` metrics where any frame gap falls below the threshold. Ordering
-        is deterministic: pairs sorted, then ttc/pet/collision per pair.
+        ``collision`` metrics where any frame gap falls below the threshold. Every
+        pair also reports ``min_dist`` (minimum inter-actor distance over the run;
+        reported-only proximity oracle, INV-QUA-0001, research wave R1). Ordering
+        is deterministic: pairs sorted, then ttc/pet/collision/min_dist per pair.
     """
     rulebook = _load_rulebook()
     collision_threshold = float(
@@ -158,10 +161,19 @@ def compute_metrics(csv_path: Path) -> list[Metric]:
                     actor_pair=pair,
                 )
             )
-            if min(g for _, g in gap_series) < collision_threshold:
+            min_gap = min(g for _, g in gap_series)
+            if min_gap < collision_threshold:
                 metrics.append(
                     Metric(name=MetricName.COLLISION, value=1.0, unit=Unit.NONE, actor_pair=pair)
                 )
+            metrics.append(
+                Metric(
+                    name=MetricName.MIN_DIST,
+                    value=min_gap,
+                    unit=Unit.M,
+                    actor_pair=pair,
+                )
+            )
     return metrics
 
 

@@ -4,6 +4,9 @@ A learned harness wrapped around the deterministic gate (tests/lint/types). It m
 harness decide which 5–15 historical lessons matter for a specific change, and compiles
 every session's outcome into persistent memory.
 
+**Harness-first is mandatory:** new changes update `.harness/` (experiences/invariants)
+BEFORE the code — see `skills/harness-first-policy.md`.
+
 Loop (every work session, every subagent delegation):
 
 ```

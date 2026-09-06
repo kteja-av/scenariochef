@@ -86,6 +86,34 @@ def test_ttc_and_pet_paired_for_approaching_pair(tmp_path):
     assert any(m.name == "pet" and m.actor_pair == pair for m in metrics)
 
 
+# --- 1b. min_dist reported-only proximity metric (INV-QUA-0001) ---------------
+
+
+def test_min_distance_metric_reported(tmp_path):
+    """Every reported pair also reports min_dist; reported-only, never auto-fails."""
+    from scenariochef.contracts.evaluation_report import MetricName
+
+    rows = []
+    for i in range(16):  # t = 0.0 .. 1.5, A approaches B and stops 1.0 m away
+        t = round(i * 0.1, 2)
+        rows.append({"t": t, "actor": "A", "x": 10 - 2 * t, "y": 0})
+        rows.append({"t": t, "actor": "B", "x": 6.0, "y": 0})
+    rows.sort(key=lambda r: (r["actor"], r["t"]))
+    report = evaluate(_run(csv_path=_csv(tmp_path, rows)))
+    pair = ("A", "B")
+    min_dist = [
+        m for m in report.metrics
+        if m.name == MetricName.MIN_DIST and m.actor_pair == pair
+    ]
+    assert len(min_dist) == 1
+    assert min_dist[0].value == 1.0  # closest approach: A stops at x=7, B at x=6
+    assert min_dist[0].unit.value == "m"
+    # reported-only: no ttc/pet objective result may pass or fail BECAUSE of min_dist;
+    # objective grading is untouched by the new metric.
+    for r in report.objective_results:
+        assert r.threshold_source != MetricName.MIN_DIST.value
+
+
 # --- 2. colliding CSV -> collision 1.0 ----------------------------------------
 
 

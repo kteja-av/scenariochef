@@ -11,6 +11,9 @@ metrics:
   collision:
     definition: "any frame with euclidean gap < collision_threshold"
     unit: bool
+  min_dist:
+    definition: "minimum euclidean gap between the pair over the run (reported-only proximity oracle; no objective grading without a rulebook threshold)"
+    unit: m
   completion:
     definition: "sim_time >= completion_time_fraction * planned_duration"
     unit: bool
@@ -44,3 +47,4 @@ constants:
   collision_threshold_m: 0.5
   conflict_radius_m: 0.5
   completion_time_fraction: 0.95
+  min_dist_warning_m: 2.0

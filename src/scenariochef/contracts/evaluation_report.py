@@ -19,6 +19,7 @@ class MetricName(StrEnum):
     PET = "pet"
     COLLISION = "collision"
     COMPLETION = "completion"
+    MIN_DIST = "min_dist"  # reported-only proximity metric (research wave R1)
 
 
 class DataSource(StrEnum):

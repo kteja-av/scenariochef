@@ -215,6 +215,35 @@ def test_range_sweep_candidates():
         assert action.revised_ir.constraints[0].value == expected
 
 
+def _lane_offset_constraint() -> IRConstraint:
+    return IRConstraint(
+        name="lateral_offset:ego",
+        value=Range(min=-2.0, max=2.0, unit=Unit.M),
+        unit="m",
+    )
+
+
+# --- 7b. constraint rotation across iterations (EXPM-0001) -------------------
+
+
+def test_range_sweep_rotates_constraints():
+    """Multi-constraint IRs round-robin the sweep; single-constraint IRs are unchanged."""
+    ir = _ir(constraints=[_speed_constraint(), _lane_offset_constraint()])
+    a0 = plan_explore(_eval(), ir, iteration=0)
+    a1 = plan_explore(_eval(), ir, iteration=1)
+    a2 = plan_explore(_eval(), ir, iteration=2)
+    a3 = plan_explore(_eval(), ir, iteration=3)
+    assert a0.param_sweep[0].param == "initial_speed:ego"
+    assert a0.param_sweep[0].value == 10.0  # min (pinned schedule)
+    assert a1.param_sweep[0].param == "lateral_offset:ego"
+    assert a1.param_sweep[0].value == 0.0  # mid of [-2, 2]
+    assert a2.param_sweep[0].param == "initial_speed:ego"
+    assert a2.param_sweep[0].value == 20.0  # max
+    assert a3.param_sweep[0].param == "lateral_offset:ego"
+    # pinned schedule step 4 = min(min * 1.1, max) = min(-2.2, 2.0)
+    assert a3.param_sweep[0].value == -2.2
+
+
 # --- 8. no_metric_gain ------------------------------------------------------
 
 def test_no_metric_gain_stops():
@@ -223,6 +252,25 @@ def test_no_metric_gain_stops():
     action = plan_explore(_eval(), ir, iteration=1, last_metrics=prev)
     assert action.stop is True
     assert action.stop_reason == "no_metric_gain"
+
+
+def test_plateau_stop_relative_gain():
+    """A <1 percent relative improvement over the previous iteration stops (EXPM-0002)."""
+    ir = _ir(constraints=[_speed_constraint()])
+    prev = [Metric(name="ttc", value=4.000, unit=Unit.S, actor_pair=("ego", "target"))]
+    curr = [Metric(name="ttc", value=3.995, unit=Unit.S, actor_pair=("ego", "target"))]
+    action = plan_explore(_eval(), ir, iteration=2, last_metrics=curr, prev_metrics=prev)
+    assert action.stop is True
+    assert action.stop_reason == "no_metric_gain"
+
+
+def test_meaningful_gain_keeps_exploring():
+    """A >=1 percent relative improvement continues (never stops on progress)."""
+    ir = _ir(constraints=[_speed_constraint()])
+    prev = [Metric(name="ttc", value=4.000, unit=Unit.S, actor_pair=("ego", "target"))]
+    curr = [Metric(name="ttc", value=3.900, unit=Unit.S, actor_pair=("ego", "target"))]
+    action = plan_explore(_eval(), ir, iteration=2, last_metrics=curr, prev_metrics=prev)
+    assert action.stop is False
 
 
 def test_metric_improved_keeps_exploring():

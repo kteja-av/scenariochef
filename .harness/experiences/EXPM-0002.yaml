@@ -1,0 +1,23 @@
+id: EXPM-0002
+scope: src/scenariochef/c9_feedback
+trigger: when C9 stops exploration on the no_metric_gain condition
+mistake: no_metric_gain only fires when best TTC/PET is already <= 0.1 s (the collision
+  floor); exploration continues unchanged while metrics plateau above the floor, wasting
+  loop budget on non-improving sweeps
+root_cause: the stop rule checks an absolute floor instead of a relative-improvement
+  plateau; the critical-scenario search literature (LEADE, AdvSce, adaptive generation
+  2017/2018) stops on criticality plateau
+correct_rule: stop when relative improvement of the best safety metric over the previous
+  iteration is below 1 percent (absolute delta < 0.01 s) AND the metric is not already
+  at the floor; keep the existing floor rule
+required_check: tests/test_c9.py::test_plateau_stop_relative_gain
+severity: MEDIUM
+failure_class: research-gap-stopping
+confidence: '0.85'
+source: research/reports/research-csv-mapping.md (Elicit CSV rows 13, 19, 20, 37);
+  harness-first policy 2026
+created_at: '2026-09-06'
+last_observed: '2026-09-06'
+status: ACTIVE
+times_prevented: 0
+failure_count: 0
